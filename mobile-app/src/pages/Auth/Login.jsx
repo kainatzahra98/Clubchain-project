@@ -10,6 +10,19 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState('');
+
+
+    const checkConnection = async () => {
+        setConnectionStatus('Checking...');
+        try {
+            await api.get('/health');
+            setConnectionStatus('Online ✅');
+        } catch (err) {
+            setConnectionStatus('Offline ❌: ' + (err.message || 'Network Error'));
+        }
+    };
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -70,37 +83,52 @@ const Login = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Password</label>
-                    <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        style={{
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(0,0,0,0.1)',
-                            background: '#f8fafc',
-                            outline: 'none',
-                            fontSize: '1rem'
-                        }}
-                    />
-                </div>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            style={{
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(0,0,0,0.1)',
+                                background: '#f8fafc',
+                                outline: 'none',
+                                fontSize: '1rem'
+                            }}
+                        />
+                    </div>
 
-                <div style={{ textAlign: 'right' }}>
-                    <Link to="/forgot-password" state={{ email }} style={{ fontSize: '0.85rem', color: '#3a7bd5', textDecoration: 'none' }}>Forgot Password?</Link>
-                </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <Link to="/forgot-password" state={{ email }} style={{ fontSize: '0.85rem', color: '#3a7bd5', textDecoration: 'none' }}>Forgot Password?</Link>
+                    </div>
 
-                {error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
+                    {error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
 
-                <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ height: '3.5rem', fontSize: '1.1rem', marginTop: '1rem' }}>
-                    {loading ? 'Signing In...' : 'Sign In'}
-                </Button>
+                    <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ height: '3.5rem', fontSize: '1.1rem', marginTop: '1rem' }}>
+                        {loading ? 'Signing In...' : 'Sign In'}
+                    </Button>
 
-                <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#64748b' }}>
-                    Don't have an account? <Link to="/register" style={{ color: '#3a7bd5', fontWeight: 'bold', textDecoration: 'none' }}>Create Account</Link>
-                </div>
+                    <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#64748b' }}>
+                        Don't have an account? <Link to="/register" style={{ color: '#3a7bd5', fontWeight: 'bold', textDecoration: 'none' }}>Create Account</Link>
+                    </div>
             </form>
+
+            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                <button type="button" onClick={checkConnection} style={{ fontSize: '0.8rem', color: '#64748b', background: 'none', border: '1px solid #ccc', padding: '5px 10px', borderRadius: '5px' }}>
+                    Check Server Connection
+                </button>
+                {connectionStatus && <div style={{ fontSize: '0.8rem', marginTop: '5px', color: connectionStatus.includes('Online') ? 'green' : 'red' }}>{connectionStatus}</div>}
+            </div>
+
+            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                <button type="button" onClick={checkConnection} style={{ fontSize: '0.8rem', color: '#64748b', background: 'none', border: '1px solid #ccc', padding: '5px 10px', borderRadius: '5px' }}>
+                    Check Server Connection
+                </button>
+                {connectionStatus && <div style={{ fontSize: '0.8rem', marginTop: '5px', color: connectionStatus.includes('Online') ? 'green' : 'red' }}>{connectionStatus}</div>}
+            </div>
         </AuthLayout>
     );
 };
