@@ -1,0 +1,158 @@
+.mobile-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    padding: 40px 0;
+}
+
+.mobile-wrapper.theme-dark {
+    background: #0a0a0a;
+}
+
+.mobile-phone-frame {
+    width: 375px;
+    height: 812px;
+    background: var(--white);
+    border-radius: 40px;
+    overflow: hidden;
+    box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.25);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 12px solid #1e293b;
+}
+
+.theme-dark .mobile-phone-frame {
+    background: var(--pub-bg);
+    border-color: #334155;
+    box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.8);
+}
+
+.mobile-status-bar {
+    padding: 15px 30px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+
+.theme-dark .mobile-status-bar {
+    color: white;
+}
+
+.status-icons {
+    display: flex;
+    gap: 6px;
+    font-size: 0.7rem;
+}
+
+.mobile-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    padding-bottom: 100px;
+}
+
+.mobile-content::-webkit-scrollbar {
+    display: none;
+}
+
+/* Bottom Nav */
+.mobile-bottom-nav {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(20px);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    padding-bottom: 20px;
+}
+
+.theme-dark .mobile-bottom-nav {
+    background: rgba(17, 17, 17, 0.8);
+    border-top-color: rgba(255, 255, 255, 0.05);
+}
+
+.nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: #94a3b8;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.nav-btn span {
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+.nav-btn.active {
+    color: var(--indigo);
+}
+
+.theme-dark .nav-btn.active {
+    color: var(--pub-accent);
+}
+
+/* Responsive: Actual Mobile Devices */
+@media (max-width: 450px) {
+    .mobile-wrapper {
+        padding: 0;
+    }
+
+    .mobile-phone-frame {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+        border: none;
+    }
+}
+
+/* Android Soft Keys */
+.android-soft-keys {
+    height: 48px;
+    background: var(--white);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 60px;
+    border-top: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.theme-dark .android-soft-keys {
+    background: #111;
+    border-top-color: rgba(255, 255, 255, 0.02);
+}
+
+.key {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #94a3b8;
+    opacity: 0.6;
+}
+
+.key.back {
+    border-right: none;
+    border-bottom: none;
+    transform: rotate(-45deg);
+    width: 12px;
+    height: 12px;
+}
+
+.key.home {
+    border-radius: 50%;
+}
+
+.key.overview {
+    border-radius: 4px;
+}

@@ -1,0 +1,132 @@
+.membership-card {
+    perspective: 1000px;
+    width: 100%;
+    max-width: 380px;
+    min-height: 480px;
+}
+
+.card-inner {
+    background: var(--pub-card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 24px;
+    padding: 40px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+        box-shadow 0.4s ease,
+        border-top-color 0.4s ease;
+    position: relative;
+    overflow: hidden;
+    color: var(--pub-text-body);
+}
+
+.membership-card:hover .card-inner {
+    transform: translateY(-8px) rotateX(2deg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    border-top: 4px solid transparent;
+    animation: borderGlow 3s infinite linear;
+}
+
+.membership-card .status-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.membership-card .status-badge.active {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.2);
+}
+
+.membership-card .status-badge.premium {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.2);
+}
+
+.card-title {
+    font-family: var(--font-secondary);
+    font-size: 1.8rem;
+    color: var(--pub-text-header);
+    margin-bottom: 20px;
+}
+
+.card-price {
+    display: flex;
+    align-items: baseline;
+    margin-bottom: 30px;
+}
+
+.currency {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--pub-accent);
+}
+
+.amount {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--pub-text-header);
+    margin: 0 4px;
+}
+
+.period {
+    font-size: 1rem;
+    opacity: 0.7;
+}
+
+.card-features {
+    margin-bottom: auto;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.card-features li {
+    margin-bottom: 15px;
+    position: relative;
+    padding-left: 25px;
+}
+
+.card-features li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--pub-accent);
+    font-weight: 900;
+}
+
+.card-btn {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    background-color: var(--pub-accent);
+    color: var(--white);
+    font-weight: 700;
+    font-size: 1rem;
+    margin-top: 30px;
+}
+
+.card-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+    box-shadow: 0 10px 20px rgba(0, 209, 178, 0.3);
+}
+
+/* Tier Specific Styles */
+.tier-gold .card-inner {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.tier-gold .card-title {
+    color: #f59e0b;
+}

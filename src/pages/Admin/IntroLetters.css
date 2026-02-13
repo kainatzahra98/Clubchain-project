@@ -1,0 +1,166 @@
+.letters-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.letters-header h1 {
+    font-size: 1.8rem;
+    color: #1a1a2e;
+    margin-bottom: 0.5rem;
+}
+
+.letters-header p {
+    color: #64748b;
+}
+
+.letters-table-container {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: var(--admin-card-shadow);
+    overflow-x: auto;
+}
+
+.letters-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.letters-table th {
+    text-align: left;
+    padding: 1rem;
+    color: #64748b;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.letters-table td {
+    padding: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.letters-table tr:last-child td {
+    border-bottom: none;
+}
+
+.letters-table tr:hover td {
+    background-color: #f8fafc;
+}
+
+.member-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.member-avatar {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+/* Consolidated Status Badge Styles */
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.status-badge.pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.status-badge.approved {
+    background: rgba(16, 185, 129, 0.1);
+    color: #059669;
+}
+
+.status-badge.denied {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+}
+
+.action-btn {
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.action-btn:hover {
+    border-color: #cbd5e1;
+    color: #334155;
+    background: #f8fafc;
+}
+
+/* Stats Summary */
+.stats-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stats-card-small {
+    background: white;
+    padding: 1.25rem;
+    border-radius: 12px;
+    box-shadow: var(--admin-card-shadow);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stats-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.stats-title {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.stats-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-top: 0.25rem;
+}
+
+.stats-icon-small {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}

@@ -1,0 +1,287 @@
+.management-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.btn-trash-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #64748b;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-trash-toggle:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.btn-trash-toggle.active {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #dc2626;
+}
+
+.btn-add-new {
+    background: #0f172a;
+    color: white;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+}
+
+.btn-add-new:hover {
+    background: #1e293b;
+    transform: translateY(-2px);
+}
+
+.management-controls {
+    padding: 20px;
+    border-radius: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.search-bar {
+    flex: 1;
+    max-width: 400px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f8fafc;
+    padding: 10px 15px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    color: #94a3b8;
+}
+
+.search-bar input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    font-size: 0.95rem;
+    color: #1e293b;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 15px;
+}
+
+.btn-filter {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.status-select {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    padding: 8px 16px;
+    border-radius: 10px;
+    font-weight: 600;
+    color: #64748b;
+    outline: none;
+}
+
+/* Management Table */
+.management-table-container {
+    padding: 0;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.management-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.management-table th {
+    background: #f8fafc;
+    padding: 20px;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.management-table td {
+    padding: 20px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.member-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.member-cell .name {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 1rem;
+}
+
+.member-cell .email {
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.tier-tag {
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.tier-tag.gold {
+    background: rgba(245, 158, 11, 0.1);
+    color: #d97706;
+}
+
+.tier-tag.silver {
+    background: rgba(148, 163, 184, 0.1);
+    color: #64748b;
+}
+
+.tier-tag.platinum {
+    background: rgba(124, 58, 237, 0.1);
+    color: #7c3aed;
+}
+
+.status-pill {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.status-pill.active {
+    background: #ecfdf5;
+    color: #059669;
+}
+
+.status-pill.inactive {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.status-pill.pending {
+    background: #fffbe6;
+    color: #d48806;
+}
+
+.action-btns {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+}
+
+.action-btn.edit {
+    background: #eff6ff;
+    color: #2563eb;
+}
+
+.action-btn.edit:hover {
+    background: #2563eb;
+    color: white;
+}
+
+.action-btn.delete {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.action-btn.delete:hover {
+    background: #dc2626;
+    color: white;
+}
+
+/* Role Badges */
+.role-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 50px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.role-badge.system_admin {
+    background: rgba(79, 70, 229, 0.1);
+    color: #4338ca;
+    border: 1px solid rgba(79, 70, 229, 0.2);
+}
+
+.role-badge.club_admin {
+    background: rgba(147, 51, 234, 0.1);
+    color: #7e22ce;
+    border: 1px solid rgba(147, 51, 234, 0.2);
+}
+
+.role-badge.client {
+    background: rgba(13, 148, 136, 0.1);
+    color: #0f766e;
+    border: 1px solid rgba(13, 148, 136, 0.2);
+}
+
+.loading-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+@media (max-width: 768px) {
+    .management-controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .search-bar {
+        max-width: 100%;
+    }
+}

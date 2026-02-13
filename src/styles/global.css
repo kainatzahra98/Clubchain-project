@@ -1,0 +1,172 @@
+:root {
+  /* Typography */
+  --font-primary: 'Poppins', sans-serif;
+  --font-secondary: 'Montserrat', sans-serif;
+
+  /* Theme A: Public Member UI (Dark Aesthetics) */
+  --pub-bg: #111111;
+  --pub-accent: #00d1b2;
+  --pub-text-header: #ffffff;
+  --pub-text-body: #cbd5e1;
+  --pub-card-bg: rgba(30, 41, 59, 0.4);
+
+  /* Theme B: Admin & Dashboard UI (Premium Light) */
+  --admin-bg-light: #f4f7fe;
+  --admin-bg-gradient: linear-gradient(135deg, #f0f4ff 0%, #e6e9ff 100%);
+  --admin-accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --admin-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+  --admin-glass-bg: rgba(255, 255, 255, 0.8);
+  --admin-glass-border: rgba(255, 255, 255, 0.4);
+  --admin-text-main: #1e293b;
+  --admin-text-dim: #64748b;
+
+  /* Common Colors */
+  --white: #ffffff;
+  --black: #000000;
+  --success: #10b981;
+  --error: #f43f5e;
+  --indigo: #4f46e5;
+
+  /* Transitions */
+  --transition-fast: 0.2s ease;
+  --transition-standard: 0.3s ease;
+  --transition-slow: 0.5s ease;
+
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  font-family: var(--font-primary);
+  background-color: var(--white);
+  color: #333;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-primary);
+  font-weight: 700;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: var(--transition-standard);
+}
+
+button {
+  font-family: var(--font-primary);
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: var(--transition-standard);
+}
+
+ul {
+  list-style: none;
+}
+
+/* Utility Classes */
+.glass {
+  backdrop-filter: blur(10px);
+  background: var(--admin-glass-bg);
+  border: 1px solid var(--admin-glass-border);
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.05);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes borderGlow {
+  0% {
+    border-top-color: #ff0000;
+  }
+
+  33% {
+    border-top-color: #800080;
+  }
+
+  66% {
+    border-top-color: #0000ff;
+  }
+
+  100% {
+    border-top-color: #ff0000;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}

@@ -1,0 +1,143 @@
+.plans-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.plans-header h1 {
+    font-size: 1.8rem;
+    color: #1a1a2e;
+    margin-bottom: 0.5rem;
+}
+
+.plans-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 2rem;
+}
+
+.plan-card {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: var(--admin-card-shadow);
+    border: 1px solid #f1f5f9;
+    position: relative;
+    transition: transform 0.3s ease;
+}
+
+.plan-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 20px 30px rgba(0, 0, 0, 0.1);
+}
+
+.plan-card.premium {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    color: white;
+    border: none;
+}
+
+.plan-card.premium h2,
+.plan-card.premium .plan-price,
+.plan-card.premium .plan-description {
+    color: white;
+}
+
+.plan-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.plan-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    color: #4f46e5;
+}
+
+.plan-card.premium .plan-icon {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffd700;
+}
+
+.plan-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #1a1a2e;
+}
+
+.plan-price {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin-bottom: 0.5rem;
+}
+
+.plan-price span {
+    font-size: 1rem;
+    color: #64748b;
+    font-weight: 400;
+}
+
+.plan-card.premium .plan-price span {
+    color: #cbd5e1;
+}
+
+.plan-description {
+    color: #64748b;
+    margin-bottom: 0;
+}
+
+.plan-features {
+    list-style: none;
+    margin-bottom: 2rem;
+}
+
+.plan-features li {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    color: #334155;
+}
+
+.plan-card.premium .plan-features li {
+    color: #e2e8f0;
+}
+
+.check-icon {
+    color: #10b981;
+}
+
+.btn-edit-plan {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: white;
+    color: #1a1a2e;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-edit-plan:hover {
+    background: #f8fafc;
+}
+
+.plan-card.premium .btn-edit-plan {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.plan-card.premium .btn-edit-plan:hover {
+    background: rgba(255, 255, 255, 0.2);
+}

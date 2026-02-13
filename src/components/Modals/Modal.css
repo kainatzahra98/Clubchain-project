@@ -1,0 +1,130 @@
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    overflow-y: auto;
+    position: relative;
+    animation: modal-appear 0.3s ease-out;
+}
+
+@keyframes modal-appear {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    padding: 24px 30px;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 1.5rem;
+    color: #1e293b;
+}
+
+.close-btn {
+    font-size: 1.2rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+
+.close-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.modal-body {
+    padding: 30px;
+}
+
+/* Standard Form Styles for Modal */
+.modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.form-group input {
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 1rem;
+    transition: all var(--transition-fast);
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--indigo);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.btn-primary {
+    flex: 1;
+    background: var(--admin-accent-gradient);
+    color: white;
+    padding: 14px;
+    border-radius: 12px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.btn-secondary {
+    flex: 1;
+    background: #f1f5f9;
+    color: #475569;
+    padding: 14px;
+    border-radius: 12px;
+    font-weight: 600;
+}
