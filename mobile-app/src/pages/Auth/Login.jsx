@@ -120,20 +120,21 @@ const Login = () => {
                             {showPassword ? '👁️' : '🙈'}
                         </button>
                     </div>
+                </div>
 
-                    <div style={{ textAlign: 'right' }}>
-                        <Link to="/forgot-password" state={{ email }} style={{ fontSize: '0.85rem', color: '#3a7bd5', textDecoration: 'none' }}>Forgot Password?</Link>
-                    </div>
+                <div style={{ textAlign: 'right' }}>
+                    <Link to="/forgot-password" state={{ email }} style={{ fontSize: '0.85rem', color: '#3a7bd5', textDecoration: 'none' }}>Forgot Password?</Link>
+                </div>
 
-                    {error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
+                {error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
 
-                    <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ height: '3.5rem', fontSize: '1.1rem', marginTop: '1rem' }}>
-                        {loading ? 'Signing In...' : 'Sign In'}
-                    </Button>
+                <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ height: '3.5rem', fontSize: '1.1rem', marginTop: '1rem' }}>
+                    {loading ? 'Signing In...' : 'Sign In'}
+                </Button>
 
-                    <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#64748b' }}>
-                        Don't have an account? <Link to="/register" style={{ color: '#3a7bd5', fontWeight: 'bold', textDecoration: 'none' }}>Create Account</Link>
-                    </div>
+                <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.9rem', color: '#64748b' }}>
+                    Don't have an account? <Link to="/register" style={{ color: '#3a7bd5', fontWeight: 'bold', textDecoration: 'none' }}>Create Account</Link>
+                </div>
             </form>
 
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
@@ -147,3 +148,4 @@ const Login = () => {
 };
 
 export default Login;
+```
