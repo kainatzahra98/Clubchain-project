@@ -224,6 +224,16 @@ exports.processLetterApproval = async (letter, status, rejectionReason, admin) =
 // @access  Private (Owner or Target Club Admin)
 exports.downloadLetter = async (req, res) => {
     try {
+        // Support query token for mobile browser download
+        if (req.query.token && !req.user) {
+            try {
+                const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
+                req.user = await User.findById(decoded.id).select('-password');
+            } catch (err) {
+                return res.status(401).json({ message: 'Invalid token' });
+            }
+        }
+
         const letter = await IntroductionLetter.findById(req.params.id)
             .populate('memberId', 'name email')
             .populate('homeClubId', 'name location')

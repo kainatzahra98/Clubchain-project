@@ -5,6 +5,7 @@ import Button from '../../components/UI/Button';
 import api from '../../utils/api';
 import { FaChevronLeft, FaDownload, FaQrcode, FaClock, FaCheckCircle, FaTimesCircle, FaEye } from 'react-icons/fa';
 import { QRCodeSVG } from 'qrcode.react';
+import { Browser } from '@capacitor/browser';
 
 const MyLetters = () => {
     const navigate = useNavigate();
@@ -30,24 +31,28 @@ const MyLetters = () => {
     const handlePdfAction = async (id, mode, e) => {
         e.stopPropagation();
         try {
-            const response = await api.get(`/intro-letters/${id}/download`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            // Get user token for authentication via query param
+            const userStr = localStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
+            const token = user?.token;
 
-            if (mode === 'view') {
-                window.open(url, '_blank');
-            } else {
-                const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', `IntroLetter-${id}.pdf`);
-                document.body.appendChild(link);
-                link.click();
-                link.parentNode.removeChild(link);
+            if (!token) {
+                alert('Authentication error. Please login again.');
+                return;
             }
 
-            // Note: Cleaner blob management would revoke URL later, but for simple app it's okay for now
+            // Construct URL with query token
+            // Ensure baseURL doesn't end with slash if path starts with one, or handle neatly
+            const baseURL = api.defaults.baseURL || import.meta.env.VITE_API_URL || 'https://clubchain-backend.vercel.app/api';
+            const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+            const url = `${cleanBaseURL}/intro-letters/${id}/download?token=${token}`;
+
+            // Open in System Browser (handles PDF viewing and downloading)
+            await Browser.open({ url });
+
         } catch (err) {
             console.error('Action failed', err);
-            alert('Failed to process request');
+            alert('Failed to open document. Please try again.');
         }
     };
 

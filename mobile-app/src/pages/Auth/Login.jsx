@@ -92,6 +92,7 @@ const Login = () => {
                             required
                             style={{
                                 padding: '1rem',
+                                paddingRight: '3rem', // Add space for eye icon
                                 borderRadius: '12px',
                                 border: '1px solid rgba(0,0,0,0.1)',
                                 background: '#f8fafc',
