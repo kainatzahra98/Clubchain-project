@@ -4,54 +4,59 @@ const User = require('../models/User.model');
 const protect = async (req, res, next) => {
     let token;
 
-    // DEBUG: Log entire request details to catch the issue
-    if (req.originalUrl.includes('/download')) {
-        console.log('--- DOWNLOAD REQUEST DEBUG ---');
-        console.log('URL:', req.originalUrl);
-        console.log('Query Keys:', Object.keys(req.query));
-        console.log('Token in Query:', req.query.token ? 'YES' : 'NO');
-        if (req.query.token) console.log('Token Length:', req.query.token.length);
-        console.log('------------------------------');
+    // 1. Extract from Authorization Header
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+        token = req.headers.authorization.split(' ')[1];
+    }
+    // 2. Extract from Query Parameter (if not in header)
+    else if (req.query.token) {
+        token = req.query.token;
     }
 
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        try {
-            token = req.headers.authorization.split(' ')[1];
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-            req.user = await User.findById(decoded.id).select('-password');
-
-            if (!req.user) {
-                console.error('Auth Middleware: User not found for ID', decoded.id);
-                // Mock user to prevent crash if record is missing (Emergency Fix)
-                req.user = { id: decoded.id, role: 'CLIENT', name: 'Ghost User' };
-            }
-
-            return next();
-        } catch (error) {
-            console.error('Auth Middleware Error:', error.message);
-            return res.status(401).json({ message: 'Not authorized: ' + error.message });
-        }
-    } else if (req.query.token) {
-        try {
-            console.log('[DEBUG] AuthMiddleware found token in Query Params');
-            token = req.query.token;
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            req.user = await User.findById(decoded.id).select('-password');
-            if (!req.user) {
-                // Mock user to prevent crash
-                req.user = { id: decoded.id, role: 'CLIENT', name: 'Ghost User' };
-            }
-            return next();
-        } catch (error) {
-            console.error('[ERROR] AuthMiddleware Query Token Failed:', error.message);
-            return res.status(401).json({ message: 'Not authorized: ' + error.message });
-        }
+    // DEBUG: Log specific details for download/view requests
+    if (req.originalUrl.includes('/download') || req.originalUrl.includes('/intro-letters')) {
+        console.log(`[AUTH DEBUG] URL: ${req.originalUrl}`);
+        console.log(`[AUTH DEBUG] Token Found: ${!!token}`);
+        if (token) console.log(`[AUTH DEBUG] Token Length: ${token.length}`);
     }
 
     if (!token) {
-        console.warn('Auth Middleware: [NO TOKEN] from', req.ip, 'requesting', req.originalUrl);
-        return res.status(401).json({ message: 'Not authorized, no token' });
+        console.warn(`[AUTH FAIL] No token provided for ${req.originalUrl}`);
+        // Return debug info to client for diagnosis
+        return res.status(401).json({
+            message: 'Not authorized, no token',
+            debug: {
+                query: req.query,
+                headers_auth: req.headers.authorization ? 'Present (masked)' : 'Missing',
+                url: req.originalUrl
+            }
+        });
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = await User.findById(decoded.id).select('-password');
+
+        if (!req.user) {
+            console.error(`[AUTH FAIL] User not found for ID: ${decoded.id}`);
+            // Graceful handling for deleted users in non-critical flows
+            if (req.method === 'GET') {
+                req.user = { id: decoded.id, role: 'CLIENT', name: 'Ghost User' };
+            } else {
+                return res.status(401).json({ message: 'User not found' });
+            }
+        }
+
+        next();
+    } catch (error) {
+        console.error(`[AUTH ERROR] Token verification failed: ${error.message}`);
+        return res.status(401).json({
+            message: 'Not authorized: ' + error.message,
+            debug: {
+                token_preview: token.substring(0, 10) + '...',
+                error: error.message
+            }
+        });
     }
 };
 
