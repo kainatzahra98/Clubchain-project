@@ -1,0 +1,202 @@
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    text-align: left;
+}
+
+.auth-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.auth-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.auth-form label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.theme-hybrid .auth-form label {
+    color: var(--admin-text-main);
+}
+
+.auth-form input {
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: white;
+    font-size: 1rem;
+    transition: all var(--transition-fast);
+}
+
+.theme-hybrid .auth-form input {
+    background: white;
+    border: 1px solid #e2e8f0;
+    color: var(--admin-text-main);
+}
+
+.auth-form input:focus {
+    outline: none;
+    border-color: var(--pub-accent);
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 0 4px rgba(0, 209, 178, 0.1);
+}
+
+.theme-hybrid .auth-form input:focus {
+    border-color: var(--indigo);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.form-options {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.85rem;
+    margin: 5px 0;
+}
+
+.forgot-link {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.theme-hybrid .forgot-link {
+    color: var(--indigo);
+}
+
+.btn-auth-submit {
+    width: 100%;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-top: 10px;
+    color: white;
+    transition: all var(--transition-standard);
+    background: var(--pub-accent);
+    box-shadow: 0 4px 15px rgba(0, 209, 178, 0.3);
+}
+
+.theme-hybrid .btn-auth-submit {
+    background: var(--admin-accent-gradient);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+.btn-auth-submit:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.auth-separator {
+    margin: 30px 0;
+    position: relative;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.theme-hybrid .auth-separator {
+    background: #e2e8f0;
+}
+
+.auth-separator span {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #1a1a2e;
+    padding: 0 15px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-hybrid .auth-separator span {
+    background: white;
+    color: var(--admin-text-dim);
+}
+
+.theme-dark .auth-separator span {
+    background: #111;
+}
+
+.auth-switch {
+    margin-top: 25px;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.theme-hybrid .auth-switch {
+    color: var(--admin-text-dim);
+}
+
+.auth-switch a {
+    color: var(--pub-accent);
+    font-weight: 600;
+}
+
+.theme-hybrid .auth-switch a {
+    color: var(--indigo);
+}
+
+.role-switcher {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.theme-hybrid .role-switcher {
+    border-top: 1px solid #e2e8f0;
+}
+
+.role-switcher p {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+}
+
+.theme-hybrid .role-switcher p {
+    color: var(--admin-text-dim);
+}
+
+.role-btns {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.role-btn {
+    padding: 6px 14px;
+    border-radius: 50px;
+    font-size: 0.8rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.theme-hybrid .role-btn {
+    background: #f1f5f9;
+    color: var(--admin-text-dim);
+    border: 1px solid #e2e8f0;
+}
+
+.role-btn.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.theme-hybrid .role-btn.active {
+    background: var(--indigo);
+    color: white;
+    border-color: var(--indigo);
+}

@@ -1,0 +1,124 @@
+.clubchain-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 90px;
+    z-index: 1000;
+    transition: all var(--transition-standard);
+    display: flex;
+    align-items: center;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.clubchain-header.scrolled {
+    height: 70px;
+    background-color: var(--white);
+    box-shadow: var(--shadow-md);
+}
+
+/* Logo Styles */
+.logo-text {
+    font-family: var(--font-secondary);
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--indigo);
+    letter-spacing: -1px;
+}
+
+/* Navigation Links */
+.nav-links {
+    display: flex;
+    gap: 2rem;
+}
+
+.nav-links a {
+    font-weight: 500;
+    color: #555;
+    font-size: 0.95rem;
+}
+
+.nav-links a:hover {
+    color: var(--indigo);
+    font-weight: 600;
+}
+
+/* Right Section */
+.btn-get-started {
+    background-color: var(--black);
+    color: var(--white);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.btn-get-started:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.2);
+}
+
+.user-profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.user-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--indigo);
+    color: var(--white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Public Theme Standardized (Light) */
+.clubchain-header.public:not(.scrolled) {
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+}
+
+.user-name {
+    font-weight: 600;
+    color: var(--admin-text-main);
+}
+
+.clubchain-header.public:not(.scrolled) .nav-links a {
+    color: #475569;
+}
+
+.clubchain-header.public:not(.scrolled) .nav-links a:hover {
+    color: var(--indigo);
+}
+
+.clubchain-header.public:not(.scrolled) .btn-get-started {
+    background: var(--admin-accent-gradient);
+    color: var(--white);
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+}
+
+.clubchain-header.public:not(.scrolled) .logo-text {
+    color: var(--indigo);
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .header-center {
+        display: none;
+    }
+}
