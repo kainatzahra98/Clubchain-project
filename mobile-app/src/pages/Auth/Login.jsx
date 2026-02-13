@@ -96,9 +96,29 @@ const Login = () => {
                                 border: '1px solid rgba(0,0,0,0.1)',
                                 background: '#f8fafc',
                                 outline: 'none',
-                                fontSize: '1rem'
+                                fontSize: '1rem',
+                                width: '100%',
+                                boxSizing: 'border-box'
                             }}
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={{
+                                position: 'absolute',
+                                right: '1rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '1.2rem',
+                                color: '#64748b',
+                                zIndex: 10
+                            }}
+                        >
+                            {showPassword ? '👁️' : '🙈'}
+                        </button>
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
@@ -115,13 +135,6 @@ const Login = () => {
                         Don't have an account? <Link to="/register" style={{ color: '#3a7bd5', fontWeight: 'bold', textDecoration: 'none' }}>Create Account</Link>
                     </div>
             </form>
-
-            <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-                <button type="button" onClick={checkConnection} style={{ fontSize: '0.8rem', color: '#64748b', background: 'none', border: '1px solid #ccc', padding: '5px 10px', borderRadius: '5px' }}>
-                    Check Server Connection
-                </button>
-                {connectionStatus && <div style={{ fontSize: '0.8rem', marginTop: '5px', color: connectionStatus.includes('Online') ? 'green' : 'red' }}>{connectionStatus}</div>}
-            </div>
 
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
                 <button type="button" onClick={checkConnection} style={{ fontSize: '0.8rem', color: '#64748b', background: 'none', border: '1px solid #ccc', padding: '5px 10px', borderRadius: '5px' }}>

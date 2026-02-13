@@ -146,7 +146,8 @@ const Register = () => {
                                     border: 'none',
                                     cursor: 'pointer',
                                     fontSize: '1.2rem',
-                                    color: '#64748b'
+                                    color: '#64748b',
+                                    zIndex: 10
                                 }}
                             >
                                 {showPassword ? '👁️' : '🙈'}
@@ -186,7 +187,8 @@ const Register = () => {
                                     border: 'none',
                                     cursor: 'pointer',
                                     fontSize: '1.2rem',
-                                    color: '#64748b'
+                                    color: '#64748b',
+                                    zIndex: 10
                                 }}
                             >
                                 {showPassword ? '👁️' : '🙈'}
