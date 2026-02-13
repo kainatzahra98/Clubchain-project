@@ -4,6 +4,16 @@ const User = require('../models/User.model');
 const protect = async (req, res, next) => {
     let token;
 
+    // DEBUG: Log entire request details to catch the issue
+    if (req.originalUrl.includes('/download')) {
+        console.log('--- DOWNLOAD REQUEST DEBUG ---');
+        console.log('URL:', req.originalUrl);
+        console.log('Query Keys:', Object.keys(req.query));
+        console.log('Token in Query:', req.query.token ? 'YES' : 'NO');
+        if (req.query.token) console.log('Token Length:', req.query.token.length);
+        console.log('------------------------------');
+    }
+
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         try {
             token = req.headers.authorization.split(' ')[1];
@@ -22,11 +32,25 @@ const protect = async (req, res, next) => {
             console.error('Auth Middleware Error:', error.message);
             return res.status(401).json({ message: 'Not authorized: ' + error.message });
         }
+    } else if (req.query.token) {
+        try {
+            console.log('[DEBUG] AuthMiddleware found token in Query Params');
+            token = req.query.token;
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            req.user = await User.findById(decoded.id).select('-password');
+            if (!req.user) {
+                // Mock user to prevent crash
+                req.user = { id: decoded.id, role: 'CLIENT', name: 'Ghost User' };
+            }
+            return next();
+        } catch (error) {
+            console.error('[ERROR] AuthMiddleware Query Token Failed:', error.message);
+            return res.status(401).json({ message: 'Not authorized: ' + error.message });
+        }
     }
 
     if (!token) {
         console.warn('Auth Middleware: [NO TOKEN] from', req.ip, 'requesting', req.originalUrl);
-        console.warn('Headers:', JSON.stringify(req.headers, null, 2));
         return res.status(401).json({ message: 'Not authorized, no token' });
     }
 };
