@@ -133,6 +133,13 @@ def health():
         "mode": "AI" if MODEL_LOADED else "Heuristic"
     })
 
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "message": "Clubchain Sentiment Service is running!",
+        "status": "online"
+    })
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port)
