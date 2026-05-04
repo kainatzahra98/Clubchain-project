@@ -30,23 +30,10 @@ const MyLetters = () => {
         try {
             const res = await api.get('/intro-letters/my');
             const data = res.data || [];
-            console.log('[DEBUG] Raw letters count:', data.length);
-
-            // Sort: PENDING first, then APPROVED, then by newest date
+            // Strictly sort by newest date first
             const sortedLetters = [...data].sort((a, b) => {
-                const getPriority = (s) => {
-                    if (s === 'PENDING') return 0;
-                    if (s === 'APPROVED') return 1;
-                    return 2;
-                };
-                const pA = getPriority(a.status);
-                const pB = getPriority(b.status);
-                
-                if (pA !== pB) return pA - pB;
                 return new Date(b.createdAt) - new Date(a.createdAt);
             });
-            
-            console.log('[DEBUG] Sorted letters (first 3 status):', sortedLetters.slice(0, 3).map(l => l.status));
             setLetters(sortedLetters);
         } catch (err) {
             console.error(err);
