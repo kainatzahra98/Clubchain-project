@@ -104,31 +104,43 @@ const MyLetters = () => {
                     recursive: true,
                 });
                 
-                await Share.share({
-                    title: 'View Introduction Letter',
-                    url: saved.uri,
-                    dialogTitle: 'Open PDF',
-                });
-            } else {
-                // Web: Use the iframe modal
-                const response = await api.get(`/intro-letters/${letter._id}/download`, {
-                    responseType: 'blob'
-                });
-                
-                const dataUrl = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(response.data);
-                });
-                
-                setPdfModal(dataUrl);
             }
+            
+            // In-app view for both Web and Mobile
+            const { dataUrl } = await fetchPdfBase64(letter._id);
+            setPdfModal(dataUrl);
         } catch (err) {
             console.error('View letter failed:', err);
             alert('Could not open the letter: ' + err.message);
         } finally {
             setViewLoadingId(null);
+        }
+    };
+
+    const handleExternalView = async () => {
+        if (!pdfModal) return;
+        try {
+            if (Capacitor.isNativePlatform()) {
+                const fileName = `intro-letter-view.pdf`;
+                const base64Only = pdfModal.split(',')[1];
+                const saved = await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Only,
+                    directory: Directory.Cache,
+                    recursive: true,
+                });
+                await Share.share({
+                    title: 'Introduction Letter',
+                    url: saved.uri,
+                });
+            } else {
+                const link = document.createElement('a');
+                link.href = pdfModal;
+                link.target = '_blank';
+                link.click();
+            }
+        } catch (err) {
+            console.error('External view failed:', err);
         }
     };
 
@@ -405,7 +417,15 @@ const MyLetters = () => {
                                 <FaTimes /> Close
                             </Button>
                         </div>
-                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem' }}>
+                        {Capacitor.isNativePlatform() && (
+                            <div style={{ padding: '0.5rem 1rem', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>If PDF doesn't appear below:</p>
+                                <Button size="small" variant="outline" onClick={handleExternalView} style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>
+                                    Open with System Viewer
+                                </Button>
+                            </div>
+                        )}
+                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem', background: '#f3f4f6' }}>
                             <iframe 
                                 src={pdfModal} 
                                 style={{ 
