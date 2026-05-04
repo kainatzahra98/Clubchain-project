@@ -2,14 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
-import { FaUsers, FaClipboardList, FaChartLine, FaCog, FaGem, FaCommentDots, FaQrcode } from 'react-icons/fa';
+import { FaUsers, FaClipboardList, FaChartLine, FaCog, FaGem, FaCommentDots, FaQrcode, FaDollarSign, FaCreditCard, FaArrowUp } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const Dashboard = () => {
     const navigate = useNavigate();
     const [statsData, setStatsData] = useState(null);
+    const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user || !user.token) {
+            navigate('/login');
+        }
+    }, []);
 
     if (!user.clubId) {
         return (
@@ -38,8 +46,12 @@ const Dashboard = () => {
 
                 const response = await api.get('/dashboard/stats');
                 setStatsData(response.data);
+
+                // Fetch payment data for this club
+                const paymentsResponse = await api.get('/payments');
+                setPayments(paymentsResponse.data || []);
             } catch (err) {
-                console.error('Error fetching dashboard stats:', err);
+                console.error('Error fetching dashboard data:', err);
             } finally {
                 setLoading(false);
             }
@@ -67,7 +79,7 @@ const Dashboard = () => {
                         <li>Complete your plans & events once live</li>
                     </ul>
                 </div>
-                <Button variant="secondary" style={{ marginTop: '2rem' }} onClick={() => window.location.reload()}>
+                <Button variant="secondary" style={{ marginTop: '2rem' }} onClick={() => navigate('/club-admin/club-status')}>
                     Check Status
                 </Button>
             </div>
@@ -93,6 +105,21 @@ const Dashboard = () => {
                         {loading ? '...' : (statsData?.pendingTasks || '0')}
                     </div>
                     <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Pending Req</div>
+                </Card>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2rem' }}>
+                <Card style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#10b981', marginBottom: '0.25rem' }}>
+                        ${payments.filter(p => p.status === 'succeeded').reduce((sum, p) => sum + (p.amount || 0), 0).toFixed(0)}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Total Revenue</div>
+                </Card>
+                <Card style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#8b5cf6', marginBottom: '0.25rem' }}>
+                        {payments.filter(p => p.status === 'succeeded').length}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: '#aaa' }}>Successful Payments</div>
                 </Card>
             </div>
 
@@ -126,17 +153,90 @@ const Dashboard = () => {
                 </div>
             </section>
 
-            <section>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Recent Performance</h3>
-                <Card>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div>
-                            <span style={{ display: 'block', fontSize: '0.9rem', color: '#aaa' }}>Recent Feedback</span>
-                            <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{statsData?.recentFeedbackCount || '0'} New</span>
+            <section style={{ marginBottom: '2rem' }}>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Recent Payments</h3>
+                {payments.length === 0 ? (
+                    <Card>
+                        <div style={{ textAlign: 'center', padding: '2rem', color: '#999' }}>
+                            <FaCreditCard size={48} style={{ marginBottom: '1rem', color: '#ddd' }} />
+                            <p>No payment records found</p>
                         </div>
-                        <FaChartLine size={24} color="#5ddc72" />
+                    </Card>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {payments.slice(0, 5).map((payment) => (
+                            <Card key={payment._id} style={{ padding: '1rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                            <span style={{ fontWeight: 'bold', fontSize: '0.95rem' }}>
+                                                {payment.userId?.name || 'Unknown Member'}
+                                            </span>
+                                            <span style={{
+                                                fontSize: '0.75rem',
+                                                padding: '0.2rem 0.5rem',
+                                                borderRadius: '12px',
+                                                background: payment.status === 'succeeded' ? '#dcfce7' : 
+                                                          payment.status === 'pending' ? '#fef3c7' : '#fee2e2',
+                                                color: payment.status === 'succeeded' ? '#166534' : 
+                                                       payment.status === 'pending' ? '#92400e' : '#991b1b'
+                                            }}>
+                                                {payment.status}
+                                            </span>
+                                        </div>
+                                        <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                                            {payment.planId?.title || 'Membership Plan'}
+                                        </div>
+                                        <div style={{ fontSize: '0.75rem', color: '#999' }}>
+                                            {new Date(payment.createdAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#10b981' }}>
+                                            ${payment.amount || 0}
+                                        </div>
+                                        {payment.status === 'succeeded' && (
+                                            <FaArrowUp size={12} color="#10b981" style={{ marginTop: '0.25rem' }} />
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
+                        {payments.length > 5 && (
+                            <Button 
+                                variant="outline" 
+                                style={{ width: '100%', marginTop: '0.5rem' }}
+                                onClick={() => navigate('/club-admin/payments')}
+                            >
+                                View All Payments ({payments.length})
+                            </Button>
+                        )}
                     </div>
-                </Card>
+                )}
+            </section>
+
+            <section>
+                <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Recent Performance (Last 7 Days)</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <Card style={{ padding: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.25rem' }}>New Feedback</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#ec4899' }}>{statsData?.recentFeedbackCount || '0'}</span>
+                            </div>
+                            <FaCommentDots size={20} color="#ec4899" />
+                        </div>
+                    </Card>
+                    <Card style={{ padding: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '0.25rem' }}>New Members</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#10b981' }}>{statsData?.newMembersThisWeek || '0'}</span>
+                            </div>
+                            <FaUsers size={20} color="#10b981" />
+                        </div>
+                    </Card>
+                </div>
             </section>
         </div>
     );

@@ -6,6 +6,7 @@ const { protect } = require('../middlewares/auth.middleware');
 const { authorize } = require('../middlewares/role.middleware');
 
 router.get('/', getClubs);
+
 router.get('/:id', getClub);
 router.post('/', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), createClub);
 router.put('/:id', protect, authorize('CLUB_ADMIN', 'SYSTEM_ADMIN'), updateClub);

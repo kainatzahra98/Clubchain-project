@@ -1,6 +1,7 @@
 const axios = require('axios');
+require('dotenv').config();
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(':5173', ':5000/api') : 'http://localhost:5000/api';
 
 const testMobileRegistration = async () => {
     console.log('📱 Simulating Mobile App Registration...');

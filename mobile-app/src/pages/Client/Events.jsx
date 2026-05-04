@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import Toast from '../../components/UI/Toast';
-import { FaCalendarAlt, FaMapMarkerAlt, FaSearch } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaSearch, FaChevronLeft } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const Events = () => {
@@ -12,19 +12,28 @@ const Events = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [toast, setToast] = useState(null);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user || !user.token) {
+            navigate('/login');
+        }
+    }, []);
 
     useEffect(() => {
         const fetchEvents = async () => {
             try {
                 setLoading(true);
                 const selectedClubId = localStorage.getItem('selectedClubId');
-                const params = {};
 
+                let response;
                 if (selectedClubId) {
-                    params.clubId = selectedClubId;
+                    response = await api.get('/events', { params: { clubId: selectedClubId } });
+                } else {
+                    // Fetch only events for clubs the user has joined
+                    response = await api.get('/members/events');
                 }
-
-                const response = await api.get('/events', { params });
                 setEvents(response.data);
             } catch (err) {
                 console.error('Error fetching events:', err);
@@ -50,7 +59,12 @@ const Events = () => {
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             <header style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Upcoming Events</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                    <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#333' }}>
+                        <FaChevronLeft />
+                    </button>
+                    <h2 style={{ fontSize: '1.75rem', fontWeight: 'bold', margin: 0 }}>Upcoming Events</h2>
+                </div>
                 <div style={{ position: 'relative' }}>
                     <FaSearch style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                     <input
@@ -95,7 +109,10 @@ const Events = () => {
                                     </span>
                                 </div>
                                 <div style={{ padding: '1rem', flex: 1 }}>
-                                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', color: '#1e293b' }}>{event.title}</h4>
+                                    <div style={{ fontSize: '0.7rem', color: '#3a7bd5', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>
+                                        {event.clubId?.name || 'Club Event'}
+                                    </div>
+                                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.25rem', color: '#1e293b', fontWeight: 'bold' }}>{event.title}</h4>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.85rem' }}>
                                         <FaMapMarkerAlt size={12} /> {event.location}
                                     </div>

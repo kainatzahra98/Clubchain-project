@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Ensure upload directory exists
-const uploadDir = path.join(__dirname, '../../uploads/events');
+const uploadDir = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -14,9 +14,10 @@ const storage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        // Create unique filename: event-timestamp-originalExtension
+        // Create unique filename: fieldname-timestamp-originalExtension
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'event-' + uniqueSuffix + path.extname(file.originalname));
+        const prefix = file.fieldname === 'avatar' ? 'avatar' : 'file';
+        cb(null, prefix + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 

@@ -12,43 +12,57 @@ const generateToken = (id) => {
 
 // @desc    Register new user
 // @route   POST /api/auth/register
-// @access  Public
+// @access  Public (for CLIENT only) / Private/SYSTEM_ADMIN (for admin roles)
 const registerUser = async (req, res) => {
     const { name, email, password, role, clubId } = req.body;
 
     try {
+        // Check if trying to create administrative roles
+        if (role === 'SYSTEM_ADMIN' || role === 'SUPPORT_TEAM') {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer')) {
+                return res.status(401).json({ message: 'Authentication required to create Admin users' });
+            }
+
+            const token = authHeader.split(' ')[1];
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const requestingUser = await User.findById(decoded.id);
+
+            // Strict SuperAdmin Check: Only admin@clubz.com can create other admins
+            if (!requestingUser || requestingUser.email !== 'admin@clubz.com') {
+                return res.status(403).json({ message: 'Only the SuperAdmin (admin@clubz.com) can create administrative users' });
+            }
+        }
+        // Note: CLUB_ADMIN can self-register, no authentication required
+
         let user = await User.findOne({ email });
 
         if (user) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Generate 6-digit OTP
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        console.log('>>> DEBUG OTP (Register):', otp);
-        // OTP expires in 10 minutes
-        const otpExpires = new Date(Date.now() + 10 * 60 * 1000);
-
-        // Create new user
+        // Create new user (auto-verified, no OTP)
         user = await User.create({
             name,
             email,
             password,
-            role,
+            role: role || 'CLIENT',
             clubId,
-            otp,
-            otpExpires,
-            isVerified: false,
+            permissions: permissions || [],
+            isVerified: true, // Auto-verify
             // Clients start as INACTIVE until they join a club
             status: role === 'CLIENT' ? 'INACTIVE' : 'ACTIVE'
         });
 
         if (user) {
-            await sendOtpEmail(user.email, otp);
-
+            // Return user with token for auto-login
             res.status(201).json({
-                message: 'Registration successful. OTP sent to your email.',
-                email: user.email
+                _id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                clubId: user.clubId,
+                token: generateToken(user._id)
             });
         } else {
             res.status(400).json({ message: 'Invalid user data' });
@@ -190,6 +204,7 @@ const updateUser = async (req, res) => {
         user.email = req.body.email || user.email;
         user.role = req.body.role || user.role;
         user.status = req.body.status || user.status;
+        user.permissions = req.body.permissions || user.permissions;
 
         if (req.body.password) {
             user.password = req.body.password;
@@ -214,7 +229,7 @@ const updateUser = async (req, res) => {
 // @access  Private
 const updateProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
+        const user = await User.findById(req.user.id).select('+password');
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
@@ -222,9 +237,20 @@ const updateProfile = async (req, res) => {
 
         if (req.body.name) user.name = req.body.name;
         if (req.body.phone) user.phone = req.body.phone;
-        if (req.body.avatar) user.avatar = req.body.avatar;
+        
+        if (req.file) {
+            user.avatar = `/uploads/${req.file.filename}`;
+        }
 
         if (req.body.password) {
+            // Check if current password is provided and matches
+            if (!req.body.currentPassword) {
+                return res.status(400).json({ message: 'Current password is required to set a new password' });
+            }
+            const isMatch = await user.matchPassword(req.body.currentPassword);
+            if (!isMatch) {
+                return res.status(401).json({ message: 'Current password is incorrect' });
+            }
             user.password = req.body.password;
         }
 
@@ -281,7 +307,7 @@ const getAdmins = async (req, res) => {
         const admins = await User.find({
             role: { $in: ['SYSTEM_ADMIN', 'SUPPORT_TEAM'] },
             status: { $ne: 'DELETED' }
-        }).select('name email role clubId');
+        }).select('name email role clubId permissions');
         res.json(admins);
     } catch (error) {
         res.status(500).json({ message: error.message });

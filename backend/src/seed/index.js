@@ -6,6 +6,11 @@ const Feedback = require('../models/Feedback.model');
 const Membership = require('../models/Membership.model');
 const Task = require('../models/Task.model');
 const Event = require('../models/Event.model');
+const MembershipPlan = require('../models/MembershipPlan.model');
+const IntroductionLetter = require('../models/IntroductionLetter.model');
+const Notification = require('../models/Notification.model');
+const Payment = require('../models/Payment.model');
+const Settings = require('../models/Settings.model');
 
 const fs = require('fs');
 const path = require('path');
@@ -19,21 +24,20 @@ const seedData = async () => {
         await mongoose.connect(process.env.MONGODB_URI);
         console.log('MongoDB Connected for seeding...');
 
-        // Clear existing data
-        await User.deleteMany();
-        await Club.deleteMany();
-        await Feedback.deleteMany();
-        await Membership.deleteMany();
-        await Task.deleteMany();
-        await Event.deleteMany();
+        // Note: Not clearing existing data to preserve user records
+        // If you need to reset, uncomment the lines below:
+        // await User.deleteMany();
+        // await Club.deleteMany();
+        // await Feedback.deleteMany();
+        // etc.
 
-        console.log('Previous data cleared.');
+        console.log('Seeding data (preserving existing records)...');
 
         // 1. Create Clubs
         const clubs = await Club.insertMany([
-            { name: 'Elite Fitness Club', description: 'Premium fitness and wellness', category: 'Health', location: 'Downtown' },
-            { name: 'The coding hub', description: 'Tech and innovation community', category: 'Tech', location: 'Tech Park' },
-            { name: 'Royal Arts Club', description: 'Classical music and arts gallery', category: 'Arts', location: 'Cultural District' }
+            { name: 'Elite Fitness Club', description: 'Premium fitness and wellness', category: 'Health', location: 'Downtown', status: 'pending' },
+            { name: 'The coding hub', description: 'Tech and innovation community', category: 'Tech', location: 'Tech Park', status: 'pending' },
+            { name: 'Royal Arts Club', description: 'Classical music and arts gallery', category: 'Arts', location: 'Cultural District', status: 'active' }
         ]);
 
         // 2. Create Users
@@ -54,7 +58,15 @@ const seedData = async () => {
             { name: 'Michael Smith', email: 'michael@gmail.com', password: 'password123', role: 'CLIENT' },
             { name: 'Sarah Jones', email: 'sarah@yahoo.com', password: 'password123', role: 'CLIENT' },
             { name: 'Emma Wilson', email: 'emma@gmail.com', password: 'password123', role: 'CLIENT' },
-            { name: 'David Brown', email: 'david@outlook.com', password: 'password123', role: 'CLIENT' }
+            { name: 'David Brown', email: 'david@outlook.com', password: 'password123', role: 'CLIENT' },
+            { name: 'James Johnson', email: 'james@hotmail.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Jennifer Davis', email: 'jennifer@gmail.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Christopher Martinez', email: 'chris@yahoo.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Amanda Anderson', email: 'amanda@outlook.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Matthew Taylor', email: 'matthew@gmail.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Jessica Thomas', email: 'jessica@hotmail.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Daniel Jackson', email: 'daniel@gmail.com', password: 'password123', role: 'CLIENT' },
+            { name: 'Elizabeth White', email: 'elizabeth@yahoo.com', password: 'password123', role: 'CLIENT' }
         ]);
 
         // 3. Create Memberships
@@ -62,12 +74,21 @@ const seedData = async () => {
             { userId: clients[0]._id, clubId: clubs[0]._id, status: 'active' },
             { userId: clients[1]._id, clubId: clubs[0]._id, status: 'pending' },
             { userId: clients[2]._id, clubId: clubs[1]._id, status: 'active' },
-            { userId: clients[0]._id, clubId: clubs[1]._id, status: 'pending' }
+            { userId: clients[3]._id, clubId: clubs[1]._id, status: 'pending' },
+            { userId: clients[4]._id, clubId: clubs[0]._id, status: 'active' },
+            { userId: clients[5]._id, clubId: clubs[2]._id, status: 'active' },
+            { userId: clients[6]._id, clubId: clubs[0]._id, status: 'active' },
+            { userId: clients[7]._id, clubId: clubs[1]._id, status: 'pending' },
+            { userId: clients[8]._id, clubId: clubs[2]._id, status: 'active' },
+            { userId: clients[9]._id, clubId: clubs[0]._id, status: 'pending' },
+            { userId: clients[10]._id, clubId: clubs[1]._id, status: 'active' },
+            { userId: clients[11]._id, clubId: clubs[2]._id, status: 'pending' }
         ]);
 
         // 4. Update Club Member Counts
-        await Club.findByIdAndUpdate(clubs[0]._id, { 'stats.membersCount': 1 });
-        await Club.findByIdAndUpdate(clubs[1]._id, { 'stats.membersCount': 1 });
+        await Club.findByIdAndUpdate(clubs[0]._id, { 'stats.membersCount': 4 });
+        await Club.findByIdAndUpdate(clubs[1]._id, { 'stats.membersCount': 3 });
+        await Club.findByIdAndUpdate(clubs[2]._id, { 'stats.membersCount': 2 });
 
         // 5. Create Tasks
         await Task.insertMany([
@@ -119,6 +140,143 @@ const seedData = async () => {
                 attendeesCount: 75
             }
         ]);
+
+        // 8. Create Membership Plans
+        const membershipPlans = await MembershipPlan.insertMany([
+            {
+                clubId: clubs[0]._id,
+                title: 'Silver Membership',
+                price: '$150',
+                durationMonths: 12,
+                description: 'Basic access to fitness facilities and group classes',
+                features: [
+                    'Access to gym facilities',
+                    'Group fitness classes',
+                    'Locker room access',
+                    'Monthly fitness assessment'
+                ],
+                icon: 'FaStar',
+                isPremium: false
+            },
+            {
+                clubId: clubs[0]._id,
+                title: 'Gold Membership',
+                price: '$300',
+                durationMonths: 12,
+                description: 'Enhanced access with personal training sessions',
+                features: [
+                    'All Silver benefits',
+                    '4 personal training sessions per month',
+                    'Access to premium equipment',
+                    'Priority booking for classes',
+                    'Free guest passes (2 per month)'
+                ],
+                icon: 'FaCrown',
+                isPremium: true
+            },
+            {
+                clubId: clubs[0]._id,
+                title: 'Platinum Membership',
+                price: '$500',
+                durationMonths: 12,
+                description: 'Ultimate access with exclusive perks and VIP treatment',
+                features: [
+                    'All Gold benefits',
+                    'Unlimited personal training',
+                    'VIP locker room access',
+                    'Spa and sauna access',
+                    'Nutrition consulting',
+                    'Priority event access',
+                    'Unlimited guest passes'
+                ],
+                icon: 'FaGem',
+                isPremium: true
+            }
+        ]);
+
+        // 9. Create Introduction Letters
+        await IntroductionLetter.insertMany([
+            {
+                memberId: clients[0]._id,
+                homeClubId: clubs[0]._id,
+                targetClubId: clubs[1]._id,
+                status: 'PENDING',
+                visitDate: new Date('2026-02-15'),
+                purpose: 'Networking and technology exchange',
+                duration: 1
+            },
+            {
+                memberId: clients[1]._id,
+                homeClubId: clubs[0]._id,
+                targetClubId: clubs[2]._id,
+                status: 'APPROVED',
+                visitDate: new Date('2026-01-20'),
+                purpose: 'Art exhibition visit',
+                duration: 2,
+                qrToken: 'sample_qr_token_123'
+            }
+        ]);
+
+        // 10. Create Notifications
+        await Notification.insertMany([
+            {
+                userId: clients[0]._id,
+                type: 'success',
+                title: 'Welcome to ClubChain!',
+                message: 'Your account has been successfully created.',
+                isRead: false
+            },
+            {
+                userId: clubAdmins[0]._id,
+                type: 'alert',
+                title: 'New Membership Request',
+                message: 'Sarah Jones has requested to join Elite Fitness Club.',
+                isRead: false,
+                relatedId: memberships[1]._id
+            },
+            {
+                userId: systemAdmin._id,
+                type: 'info',
+                title: 'New Club Registration',
+                message: 'A new club has registered and awaits approval.',
+                isRead: false
+            }
+        ]);
+
+        // 11. Create Payments
+        await Payment.insertMany([
+            {
+                userId: clients[0]._id,
+                clubId: clubs[0]._id,
+                planId: membershipPlans[0]._id,
+                amount: 150,
+                currency: 'usd',
+                status: 'succeeded',
+                stripeSessionId: 'sess_test_123',
+                stripePaymentIntentId: 'pi_test_123'
+            },
+            {
+                userId: clients[2]._id,
+                clubId: clubs[1]._id,
+                planId: membershipPlans[1]._id,
+                amount: 300,
+                currency: 'usd',
+                status: 'pending',
+                stripeSessionId: 'sess_test_456'
+            }
+        ]);
+
+        // 12. Create Settings
+        await Settings.create({
+            platformName: 'ClubChain Premium',
+            supportEmail: 'support@clubchain.com',
+            defaultCurrency: 'USD',
+            maintenanceMode: false,
+            forcePasswordReset: false,
+            sessionTimeout: 30,
+            twoFactorEnforced: true,
+            updatedBy: systemAdmin._id
+        });
 
         console.log('Database Seeded Successfully! 🌱');
         process.exit();

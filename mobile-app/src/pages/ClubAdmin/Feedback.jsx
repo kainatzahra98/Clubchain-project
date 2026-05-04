@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../components/UI/Card';
-import { FaStar, FaSmile, FaFrown, FaMeh, FaFilter, FaCommentDots } from 'react-icons/fa';
+import { FaStar, FaSmile, FaFrown, FaFilter, FaCommentDots } from 'react-icons/fa';
 
 import api from '../../utils/api';
 
@@ -33,7 +33,7 @@ const Feedback = () => {
         switch (sentiment) {
             case 'positive': return '#5ddc72';
             case 'negative': return '#ff6b6b';
-            default: return '#ffd700';
+            default: return '#5ddc72';
         }
     };
 
@@ -41,7 +41,7 @@ const Feedback = () => {
         switch (sentiment) {
             case 'positive': return <FaSmile />;
             case 'negative': return <FaFrown />;
-            default: return <FaMeh />;
+            default: return <FaSmile />;
         }
     };
 
@@ -53,7 +53,7 @@ const Feedback = () => {
             </header>
 
             <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                {['all', 'positive', 'neutral', 'negative'].map((f) => (
+                {['all', 'positive', 'negative'].map((f) => (
                     <button
                         key={f}
                         onClick={() => setFilter(f)}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/Auth/AuthLayout';
 import Button from '../../components/UI/Button';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const Login = () => {
@@ -10,6 +11,7 @@ const Login = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -70,21 +72,47 @@ const Login = () => {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Password</label>
-                    <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        style={{
-                            padding: '1rem',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(0,0,0,0.1)',
-                            background: '#f8fafc',
-                            outline: 'none',
-                            fontSize: '1rem'
-                        }}
-                    />
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                            style={{
+                                padding: '1rem',
+                                paddingRight: '3rem', // Add space for eye icon
+                                borderRadius: '12px',
+                                border: '1px solid rgba(0,0,0,0.1)',
+                                background: '#f8fafc',
+                                outline: 'none',
+                                fontSize: '1rem',
+                                width: '100%',
+                                boxSizing: 'border-box'
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            style={{
+                                position: 'absolute',
+                                right: '1rem',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontSize: '1.1rem',
+                                color: '#64748b',
+                                zIndex: 10,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            {showPassword ? <FaEyeSlash /> : <FaEye />}
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>

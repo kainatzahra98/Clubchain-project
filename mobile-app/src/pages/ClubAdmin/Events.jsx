@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import Toast from '../../components/UI/Toast';
 import api from '../../utils/api';
-import { FaCalendarAlt, FaMapMarkerAlt, FaPlus, FaTrash, FaEdit, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaCalendarAlt, FaMapMarkerAlt, FaPlus, FaTrash, FaEdit, FaTimes, FaSearch, FaChevronLeft } from 'react-icons/fa';
 
 const Events = () => {
+    const navigate = useNavigate();
     const [events, setEvents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -13,6 +15,7 @@ const Events = () => {
     const [showModal, setShowModal] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [currentEventId, setCurrentEventId] = useState(null);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     const [formData, setFormData] = useState({
         title: '',
@@ -21,6 +24,13 @@ const Events = () => {
         time: '',
         location: ''
     });
+
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user || !user.token) {
+            navigate('/login');
+        }
+    }, []);
 
     useEffect(() => {
         fetchEvents();
@@ -126,7 +136,12 @@ const Events = () => {
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
             <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Manage Events</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#333' }}>
+                        <FaChevronLeft />
+                    </button>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>Manage Events</h2>
+                </div>
                 <Button onClick={() => { resetForm(); setShowModal(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}>
                     <FaPlus /> Add Event
                 </Button>

@@ -13,7 +13,14 @@ connectDB();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: true, // Allow any origin (including capacitor://localhost)
+    credentials: true, // Allow cookies/headers
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+}));
+app.options('*', cors()); // Enable pre-flight for all routes
+
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -30,6 +37,7 @@ app.use('/api/membership-plans', require('./routes/membershipPlan.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/support', require('./routes/support.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
+app.use('/api/payments', require('./routes/payment.routes'));
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'API is running' }));

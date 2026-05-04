@@ -4,11 +4,15 @@ const getPlans = async (req, res) => {
     try {
         const query = { isActive: true };
         if (req.query.clubId) {
-            query.$or = [
-                { clubId: req.query.clubId },
-                { clubId: { $exists: false } },
-                { clubId: null }
-            ];
+            if (req.query.strict === 'true') {
+                query.clubId = req.query.clubId;
+            } else {
+                query.$or = [
+                    { clubId: req.query.clubId },
+                    { clubId: { $exists: false } },
+                    { clubId: null }
+                ];
+            }
         }
         const plans = await MembershipPlan.find(query);
         res.status(200).json(plans);
@@ -43,14 +47,21 @@ const createPlan = async (req, res) => {
 // @access  Private/SYSTEM_ADMIN
 const updatePlan = async (req, res) => {
     try {
-        const plan = await MembershipPlan.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        });
+        let plan = await MembershipPlan.findById(req.params.id);
 
         if (!plan) {
             return res.status(404).json({ message: 'Plan not found' });
         }
+
+        // Authorization check
+        if (req.user.role === 'CLUB_ADMIN' && plan.clubId.toString() !== req.user.clubId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to update this plan' });
+        }
+
+        plan = await MembershipPlan.findByIdAndUpdate(req.params.id, req.body, {
+            new: true,
+            runValidators: true
+        });
 
         res.status(200).json(plan);
     } catch (error) {
@@ -63,11 +74,18 @@ const updatePlan = async (req, res) => {
 // @access  Private/SYSTEM_ADMIN
 const deletePlan = async (req, res) => {
     try {
-        const plan = await MembershipPlan.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
+        let plan = await MembershipPlan.findById(req.params.id);
 
         if (!plan) {
             return res.status(404).json({ message: 'Plan not found' });
         }
+
+        // Authorization check
+        if (req.user.role === 'CLUB_ADMIN' && plan.clubId.toString() !== req.user.clubId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to delete this plan' });
+        }
+
+        plan = await MembershipPlan.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
 
         res.status(200).json({ message: 'Plan deleted' });
     } catch (error) {

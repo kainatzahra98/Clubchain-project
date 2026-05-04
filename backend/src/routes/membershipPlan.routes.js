@@ -5,8 +5,8 @@ const { protect } = require('../middlewares/auth.middleware');
 const { authorize } = require('../middlewares/role.middleware');
 
 router.get('/', getPlans);
-router.post('/', protect, authorize('SYSTEM_ADMIN'), createPlan);
-router.put('/:id', protect, authorize('SYSTEM_ADMIN'), updatePlan);
-router.delete('/:id', protect, authorize('SYSTEM_ADMIN'), deletePlan);
+router.post('/', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), createPlan);
+router.put('/:id', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), updatePlan);
+router.delete('/:id', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), deletePlan);
 
 module.exports = router;

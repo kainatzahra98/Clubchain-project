@@ -45,6 +45,10 @@ const introductionLetterSchema = new mongoose.Schema({
     rejectionReason: {
         type: String,
         default: null
+    },
+    visitStartedAt: {
+        type: Date,
+        default: null
     }
 }, {
     timestamps: true

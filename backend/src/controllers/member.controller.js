@@ -7,6 +7,8 @@ const IntroductionLetter = require('../models/IntroductionLetter.model');
 const { processLetterApproval } = require('./introductionLetter.controller');
 
 const MembershipPlan = require('../models/MembershipPlan.model');
+const Payment = require('../models/Payment.model');
+const Event = require('../models/Event.model');
 
 // @desc    Join a club (create pending membership)
 // @route   POST /api/clubs/:id/join
@@ -81,7 +83,16 @@ const joinClub = async (req, res) => {
             return res.status(200).json(membership);
         }
 
-        // 3. New Membership Creation
+        // 2. Check if Payment is required - redirect to payment flow
+        if (plan && parseFloat(plan.price) > 0) {
+            // Return error to indicate payment is needed
+            return res.status(400).json({ 
+                message: 'Payment required. Please use the payment flow to purchase this plan.',
+                requiresPayment: true
+            });
+        }
+
+        // 3. New Membership Creation (For Free Plans or Legacy)
         membership = await Membership.create({
             userId,
             clubId,
@@ -176,7 +187,10 @@ const handleTask = async (req, res) => {
         if (!task) return res.status(404).json({ message: 'Task not found' });
 
         if (task.type === 'INTRO_LETTER_APPROVAL') {
-            const letter = await IntroductionLetter.findById(task.relatedId);
+            const letter = await IntroductionLetter.findById(task.relatedId)
+                .populate('memberId', 'name email')
+                .populate('homeClubId', 'name')
+                .populate('targetClubId', 'name');
             if (!letter) return res.status(404).json({ message: 'Introduction Letter not found' });
 
             const status = action === 'approve' ? 'APPROVED' : 'REJECTED';
@@ -226,6 +240,26 @@ const handleTask = async (req, res) => {
         await task.save();
 
         res.status(200).json({ message: `Membership ${action}d successfully` });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Delete a task
+// @route   DELETE /api/tasks/:id
+// @access  Private/CLUB_ADMIN
+const deleteTask = async (req, res) => {
+    try {
+        const task = await Task.findById(req.params.id);
+        if (!task) return res.status(404).json({ message: 'Task not found' });
+
+        // Authorization check
+        if (task.clubId.toString() !== req.user.clubId.toString() && req.user.role !== 'SYSTEM_ADMIN') {
+            return res.status(403).json({ message: 'Not authorized to delete this task' });
+        }
+
+        await task.deleteOne();
+        res.status(200).json({ message: 'Task deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -284,15 +318,81 @@ const getAllMembers = async (req, res) => {
 const getMyClubs = async (req, res) => {
     try {
         const memberships = await Membership.find({
-            userId: req.user.id
+            userId: req.user.id,
+            status: { $in: ['active', 'expired', 'inactive', 'cancelled'] } // Exclude pending and rejected
         })
             .populate('clubId', 'name location image description affiliatedClubs')
-            .populate('planId');
+            .populate('planId')
+            .lean();
 
-        // Filter out any memberships where the club might have been deleted (defensive)
-        const validMemberships = memberships.filter(m => m.clubId);
+        // Fetch clubs where user is a visitor (Approved/Accepted/Activated letters OR Expired letters for feedback)
+        const visitingLetters = await IntroductionLetter.find({
+            memberId: req.user.id,
+            status: { $in: ['APPROVED', 'ACCEPTED', 'EXPIRED'] }
+        }).populate('targetClubId', 'name location image description').lean();
 
-        res.status(200).json(validMemberships);
+        // Extract club objects from memberships
+        const joinedClubs = [];
+        for (const m of memberships) {
+            try {
+                if (m.clubId && typeof m.clubId === 'object' && m.clubId.name) {
+                    const clubObj = {
+                        _id: m._id,
+                        clubId: {
+                            _id: m.clubId._id.toString(),
+                            name: m.clubId.name,
+                            location: m.clubId.location || "",
+                            image: m.clubId.image || "",
+                            affiliatedClubs: m.clubId.affiliatedClubs || []
+                        },
+                        planId: m.planId,
+                        status: m.status,
+                        expiresAt: m.expiresAt
+                    };
+                    joinedClubs.push(clubObj);
+                }
+            } catch (err) {
+                console.error(`[MY-CLUBS] Error mapping membership ${m._id}:`, err.message);
+            }
+        }
+
+        // Extract club objects from visiting letters
+        const visitingClubs = [];
+        for (const l of visitingLetters) {
+            try {
+                if (l.targetClubId && typeof l.targetClubId === 'object' && l.targetClubId.name) {
+                    const clubObj = {
+                        _id: l._id,
+                        clubId: {
+                            _id: l.targetClubId._id.toString(),
+                            name: l.targetClubId.name,
+                            location: l.targetClubId.location || "",
+                            image: l.targetClubId.image || ""
+                        },
+                        planId: { title: 'Visitor (Intro Letter)' },
+                        status: 'visitor',
+                        expiresAt: l.expiryDate
+                    };
+                    visitingClubs.push(clubObj);
+                }
+            } catch (err) {
+                console.error(`[MY-CLUBS] Error mapping letter ${l._id}:`, err.message);
+            }
+        }
+
+        // Combine and unique by ID
+        const allClubs = [];
+        const seenIds = new Set();
+        [...joinedClubs, ...visitingClubs].forEach(club => {
+            const clubId = club.clubId._id;
+            if (!seenIds.has(clubId)) {
+                seenIds.add(clubId);
+                allClubs.push(club);
+            }
+        });
+
+        console.log(`[MY-CLUBS] Returning ${allClubs.length} verified clubs for user ${req.user.id}`);
+        res.status(200).json(allClubs);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -328,7 +428,7 @@ const deactivateMembership = async (req, res) => {
     }
 };
 
-const Event = require('../models/Event.model'); // Ensure Event model is imported
+// Ensure Event model is imported (already imported at top)
 
 // @desc    Get member statistics (Joined Clubs, Upcoming Events)
 // @route   GET /api/members/stats
@@ -337,21 +437,31 @@ const getMemberStats = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // 1. Get Active Memberships Count
+        // 1. Get Active Memberships
         const activeMemberships = await Membership.find({ userId, status: 'active' });
-        const clubsCount = activeMemberships.length;
-        const clubIds = activeMemberships.map(m => m.clubId);
+        const joinedClubIds = activeMemberships.map(m => m.clubId.toString());
 
-        // 2. Get Upcoming Events Count for joined clubs
-        // Logic: Events that belong to clubs user is a member of, and date >= now
+        // 2. Get Visiting Clubs (Approved letters)
+        const visitingLetters = await IntroductionLetter.find({
+            memberId: userId,
+            status: { $in: ['APPROVED', 'ACCEPTED'] }
+        });
+        const visitingClubIds = visitingLetters.map(l => l.targetClubId.toString());
+
+        // Combine unique club IDs
+        const allRelevantClubIds = [...new Set([...joinedClubIds, ...visitingClubIds])];
+
+        const clubsCount = allRelevantClubIds.length;
+
+        // 3. Get Upcoming Events Count for all relevant clubs
         const upcomingEventsCount = await Event.countDocuments({
-            clubId: { $in: clubIds },
+            clubId: { $in: allRelevantClubIds },
             date: { $gte: new Date() },
-            status: 'published' // Assuming we only count published events
+            status: 'published'
         });
 
-        // 3. Points (Mock or future implementation)
-        const points = 0; // Placeholder
+        // 4. Points (Mock)
+        const points = 0;
 
         res.status(200).json({
             clubsCount,
@@ -372,20 +482,30 @@ const getMemberEvents = async (req, res) => {
 
         // 1. Get Active Memberships
         const activeMemberships = await Membership.find({ userId, status: 'active' });
-        const clubIds = activeMemberships.map(m => m.clubId);
+        const joinedClubIds = activeMemberships.map(m => m.clubId.toString());
 
-        if (clubIds.length === 0) {
+        // 2. Get Visiting Clubs (Approved letters)
+        const visitingLetters = await IntroductionLetter.find({
+            memberId: userId,
+            status: { $in: ['APPROVED', 'ACCEPTED'] }
+        });
+        const visitingClubIds = visitingLetters.map(l => l.targetClubId.toString());
+
+        // Combine unique club IDs
+        const allRelevantClubIds = [...new Set([...joinedClubIds, ...visitingClubIds])];
+
+        if (allRelevantClubIds.length === 0) {
             return res.status(200).json([]);
         }
 
-        // 2. Find Events for these clubs (Date >= Now)
+        // 3. Find Events for these clubs (Date >= Now)
         const events = await Event.find({
-            clubId: { $in: clubIds },
+            clubId: { $in: allRelevantClubIds },
             date: { $gte: new Date() },
             status: 'published'
         })
-            .sort({ date: 1 }) // Closest events first
-            .populate('clubId', 'name image'); // Get club details
+            .sort({ date: 1 })
+            .populate('clubId', 'name image');
 
         res.status(200).json(events);
     } catch (error) {
@@ -489,5 +609,6 @@ module.exports = {
     getMemberStats,
     getMemberEvents,
     updateMemberNotes,
-    getMemberDetails
+    getMemberDetails,
+    deleteTask
 };

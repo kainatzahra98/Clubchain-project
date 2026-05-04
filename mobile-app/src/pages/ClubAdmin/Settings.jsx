@@ -3,13 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import Toast from '../../components/UI/Toast';
-import { FaBuilding, FaUsersCog, FaBell, FaGlobe, FaSignOutAlt, FaHandshake, FaTimes, FaSearch, FaTrash, FaPlus } from 'react-icons/fa';
+import { FaBuilding, FaUsersCog, FaBell, FaGlobe, FaSignOutAlt, FaHandshake, FaTimes, FaSearch, FaTrash, FaPlus, FaUserFriends, FaCheckCircle, FaClock, FaEye, FaPaperPlane, FaDownload } from 'react-icons/fa';
+import { Browser } from '@capacitor/browser';
+import { Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import api from '../../utils/api';
 
 const Settings = () => {
     const navigate = useNavigate();
     const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
     const [showAffiliateModal, setShowAffiliateModal] = useState(false);
+    const [showVisitorsModal, setShowVisitorsModal] = useState(false);
+    const [visitors, setVisitors] = useState([]);
+    const [notifiedVisitors, setNotifiedVisitors] = useState([]); // List of letter IDs notified in this session
+    const [notificationLoading, setNotificationLoading] = useState({}); // { letterId: boolean }
     const [affiliates, setAffiliates] = useState([]);
     const [searchResults, setSearchResults] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -35,6 +42,151 @@ const Settings = () => {
             fetchAffiliates();
         }
     }, [showAffiliateModal]);
+
+    useEffect(() => {
+        if (showVisitorsModal && user.clubId) {
+            fetchVisitors();
+        }
+    }, [showVisitorsModal]);
+
+    const fetchVisitors = async () => {
+        setLoading(true);
+        try {
+            const res = await api.get('/intro-letters/incoming');
+            setVisitors(res.data);
+        } catch (err) {
+            console.error(err);
+            setToast({ message: 'Failed to load visitors', type: 'error' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleNotify = async (letterId) => {
+        if (notificationLoading[letterId] || notifiedVisitors.includes(letterId)) return;
+
+        setNotificationLoading(prev => ({ ...prev, [letterId]: true }));
+        try {
+            await api.post(`/intro-letters/${letterId}/notify-re-request`);
+            setNotifiedVisitors(prev => [...prev, letterId]);
+            setToast({ message: 'Notification sent successfully', type: 'success' });
+        } catch (err) {
+            console.error(err);
+            setToast({ message: 'Failed to send notification', type: 'error' });
+        } finally {
+            setNotificationLoading(prev => ({ ...prev, [letterId]: false }));
+        }
+    };
+
+    const handlePdfAction = async (id, mode = 'view', e) => {
+        if (e) e.stopPropagation();
+        try {
+            const userStr = localStorage.getItem('user');
+            const token = userStr ? JSON.parse(userStr)?.token : null;
+            if (!token) return;
+
+            const baseURL = api.defaults.baseURL || import.meta.env.VITE_API_URL || 'https://clubchain-backend.vercel.app/api';
+            const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+            const pdfUrl = `${cleanBaseURL}/intro-letters/${id}/download?token=${token}&type=${mode}`;
+
+            console.log('Settings PDF action:', mode, 'URL:', pdfUrl);
+
+            if (mode === 'view') {
+                // Try to fetch the PDF first and create a blob URL
+                try {
+                    const response = await fetch(pdfUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    // Get the blob and create a data URL
+                    const blob = await response.blob();
+                    const dataUrl = URL.createObjectURL(blob);
+                    
+                    // Open the blob URL in the browser
+                    await Browser.open({ url: dataUrl });
+                    
+                    // Clean up the blob URL after a delay
+                    setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
+                    
+                } catch (fetchError) {
+                    console.error('Fetch failed, trying direct URL:', fetchError);
+                    
+                    // Fallback: try direct URL (might trigger download)
+                    await Browser.open({ url: pdfUrl });
+                }
+            } else {
+                // Download mode - save file to device
+                try {
+                    const response = await fetch(pdfUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const blob = await response.blob();
+                    const reader = new FileReader();
+                    
+                    reader.onloadend = async () => {
+                        const base64data = reader.result;
+                        
+                        try {
+                            // Save file to device
+                            const fileName = `intro-letter-${id}.pdf`;
+                            const result = await Filesystem.writeFile({
+                                path: fileName,
+                                data: base64data.split(',')[1], // Remove data:application/pdf;base64, prefix
+                                directory: 'Downloads'
+                            });
+                            
+                            console.log('File saved successfully:', result);
+                            setToast({ message: 'PDF saved to your device downloads!', type: 'success' });
+                            
+                            // Try to share the file as well
+                            try {
+                                await Share.share({
+                                    title: 'Introduction Letter',
+                                    text: 'My ClubChain Introduction Letter',
+                                    url: result.uri,
+                                    dialogTitle: 'Share Introduction Letter'
+                                });
+                            } catch (shareError) {
+                                console.log('Share cancelled or not available');
+                            }
+                            
+                        } catch (fileError) {
+                            console.error('File save failed, trying browser download:', fileError);
+                            
+                            // Fallback: try to open in browser for download
+                            const dataUrl = URL.createObjectURL(blob);
+                            await Browser.open({ url: dataUrl });
+                            setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
+                        }
+                    };
+                    
+                    reader.readAsDataURL(blob);
+                    
+                } catch (fetchError) {
+                    console.error('Download failed, trying direct URL:', fetchError);
+                    await Browser.open({ url: pdfUrl });
+                }
+            }
+        } catch (err) {
+            console.error('PDF action failed:', err);
+            setToast({ message: 'Failed to process document. Please check your internet connection and try again.', type: 'error' });
+        }
+    };
 
     const fetchClubDetails = async () => {
         setLoading(true);
@@ -157,6 +309,10 @@ const Settings = () => {
 
                     <div onClick={() => setShowAffiliateModal(true)}>
                         <MenuItem icon={<FaHandshake />} label="Affiliated Clubs" border={true} />
+                    </div>
+
+                    <div onClick={() => setShowVisitorsModal(true)}>
+                        <MenuItem icon={<FaUserFriends />} label="Visitor Management" border={true} />
                     </div>
 
                     <div onClick={handleNotificationToggle}>
@@ -304,7 +460,139 @@ const Settings = () => {
                     </div>
                 </div>
             )}
-        </div>
+
+            {/* Visitor Management Modal */}
+            {showVisitorsModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.8)', zIndex: 1000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+                }}>
+                    <div style={{
+                        background: 'white', width: '100%', maxWidth: '400px',
+                        borderRadius: '20px', padding: '1.5rem', maxHeight: '90vh', overflowY: 'auto'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <div>
+                                <h3 style={{ fontSize: '1.25rem' }}>Visitor Management</h3>
+                                <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Current & Past Visitors</p>
+                            </div>
+                            <FaTimes size={20} style={{ cursor: 'pointer' }} onClick={() => setShowVisitorsModal(false)} />
+                        </div>
+
+                        {loading && visitors.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem' }}>Loading...</div>
+                        ) : visitors.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#aaa' }}>No visitors found.</div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {visitors.map(visitor => {
+                                    const isExpired = visitor.status === 'EXPIRED' || (visitor.expiryDate && new Date(visitor.expiryDate) < new Date());
+                                    const planName = visitor.membership?.planId?.title || 'Unknown Plan';
+
+                                    return (
+                                        <div key={visitor._id} style={{ padding: '1rem', border: '1px solid #eee', borderRadius: '12px', background: isExpired ? '#f8f9fa' : 'white' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                                                        {visitor.memberId?.name?.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 'bold' }}>{visitor.memberId?.name}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#6366f1' }}>{planName}</div>
+                                                    </div>
+                                                </div>
+                                                <div style={{
+                                                    padding: '0.25rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold',
+                                                    background: isExpired ? '#fee2e2' : '#dcfce7',
+                                                    color: isExpired ? '#dc2626' : '#15803d'
+                                                }}>
+                                                    {isExpired ? 'EXPIRED' : visitor.status}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                                                    <FaClock size={12} />
+                                                    <span>Visit: {new Date(visitor.visitDate).toLocaleDateString()} ({visitor.duration} days)</span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <FaClock size={12} />
+                                                    <span>Expires: {new Date(visitor.expiryDate).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handlePdfAction(visitor._id, 'view', e)}
+                                                    style={{
+                                                        flex: 1, padding: '0.6rem 0.5rem', borderRadius: '8px', border: '1px solid #ddd', background: 'white',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem',
+                                                        cursor: 'pointer', outline: 'none'
+                                                    }}
+                                                    onMouseDown={(e) => e.currentTarget.style.opacity = '0.7'}
+                                                    onMouseUp={(e) => e.currentTarget.style.opacity = '1'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                                >
+                                                    <FaEye /> View
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => handlePdfAction(visitor._id, 'download', e)}
+                                                    style={{
+                                                        flex: 1, padding: '0.6rem 0.5rem', borderRadius: '8px', border: '1px solid #ddd', background: 'white',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem',
+                                                        cursor: 'pointer', outline: 'none'
+                                                    }}
+                                                    onMouseDown={(e) => e.currentTarget.style.opacity = '0.7'}
+                                                    onMouseUp={(e) => e.currentTarget.style.opacity = '1'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                                                >
+                                                    <FaDownload /> Save
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={notificationLoading[visitor._id] || notifiedVisitors.includes(visitor._id)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleNotify(visitor._id);
+                                                    }}
+                                                    style={{
+                                                        flex: 1.5, padding: '0.6rem 0.5rem', borderRadius: '8px', border: 'none',
+                                                        background: notifiedVisitors.includes(visitor._id) ? '#dcfce7' : '#6366f1',
+                                                        color: notifiedVisitors.includes(visitor._id) ? '#15803d' : 'white',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.8rem',
+                                                        cursor: notifiedVisitors.includes(visitor._id) ? 'default' : 'pointer',
+                                                        outline: 'none',
+                                                        fontWeight: '600',
+                                                        transition: 'all 0.2s ease',
+                                                        opacity: notificationLoading[visitor._id] ? 0.7 : 1
+                                                    }}
+                                                    onMouseDown={(e) => {
+                                                        if (!notifiedVisitors.includes(visitor._id)) e.currentTarget.style.transform = 'scale(0.95)';
+                                                    }}
+                                                    onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                                >
+                                                    {notificationLoading[visitor._id] ? (
+                                                        'Sending...'
+                                                    ) : notifiedVisitors.includes(visitor._id) ? (
+                                                        <><FaCheckCircle size={14} /> Notified</>
+                                                    ) : (
+                                                        <><FaPaperPlane size={14} /> {isExpired ? 'Notify Re-request' : 'Notify Soon'}</>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+            }
+        </div >
     );
 };
 

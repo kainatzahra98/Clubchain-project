@@ -36,7 +36,7 @@ const taskSchema = new mongoose.Schema({
     relatedModel: {
         type: String,
         required: true,
-        enum: ['Membership', 'IntroductionLetter', 'Club', 'Event'],
+        enum: ['Membership', 'IntroductionLetter', 'Club', 'Event', 'Payment'],
         default: 'Membership'
     },
     assignedTo: {

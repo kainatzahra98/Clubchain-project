@@ -67,6 +67,10 @@ const userSchema = new mongoose.Schema({
             newMembers: { type: Boolean, default: true },
             marketing: { type: Boolean, default: false }
         }
+    },
+    permissions: {
+        type: [String],
+        default: [] // Possible values: 'MANAGE_CLUBS', 'MANAGE_USERS', 'VIEW_FEEDBACK', 'MANAGE_EVENTS', 'MANAGE_PLANS'
     }
 });
 

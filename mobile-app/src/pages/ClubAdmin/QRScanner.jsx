@@ -120,38 +120,51 @@ const QRScanner = () => {
                         </div>
                     </div>
 
-                    <div style={{ border: '1px solid #e0e7ff', background: '#eef2ff', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
-                        <p style={{ fontSize: '0.9rem', color: '#4338ca', marginBottom: '0.5rem' }}>
-                            <strong>Identity Check Required:</strong> Please verify the member's physical identification card matches the name above.
-                        </p>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', justifyContent: 'center', fontWeight: 'bold' }}>
-                            <input type="checkbox" id="id-checked" style={{ width: '1.2rem', height: '1.2rem' }} /> I have verified the ID
-                        </label>
-                    </div>
+                    {scanResult.letterStatus === 'ACCEPTED' ? (
+                        <>
+                            <div style={{ border: '1px solid #e0e7ff', background: '#eef2ff', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                                <p style={{ fontSize: '0.9rem', color: '#4338ca', marginBottom: '0.5rem' }}>
+                                    <strong>Identity Check Required:</strong> Please verify the member's physical identification card matches the name above.
+                                </p>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', justifyContent: 'center', fontWeight: 'bold' }}>
+                                    <input type="checkbox" id="id-checked" style={{ width: '1.2rem', height: '1.2rem' }} /> I have verified the ID
+                                </label>
+                            </div>
 
-                    <Button
-                        fullWidth
-                        loading={accepting}
-                        onClick={async () => {
-                            const checked = document.getElementById('id-checked').checked;
-                            if (!checked) {
-                                alert('Please verify the physical ID first.');
-                                return;
-                            }
+                            <Button
+                                fullWidth
+                                loading={accepting}
+                                onClick={async () => {
+                                    const checked = document.getElementById('id-checked').checked;
+                                    if (!checked) {
+                                        alert('Please verify the physical ID first.');
+                                        return;
+                                    }
 
-                            try {
-                                setAccepting(true);
-                                await api.put(`/intro-letters/${scanResult.letterId}/accept`);
-                                alert('Visit successfully accepted!');
-                                handleReset();
-                            } catch (err) {
-                                console.error(err);
-                                alert(err.response?.data?.message || 'Failed to accept visit');
-                            } finally {
-                                setAccepting(false);
-                            }
-                        }}
-                    >Confirm & Finalize</Button>
+                                    try {
+                                        setAccepting(true);
+                                        await api.put(`/intro-letters/${scanResult.letterId}/activate`);
+                                        alert('Visit successfully activated! Entry timestamp recorded.');
+                                        handleReset();
+                                    } catch (err) {
+                                        console.error(err);
+                                        alert(err.response?.data?.message || 'Failed to accept visit');
+                                    } finally {
+                                        setAccepting(false);
+                                    }
+                                }}
+                            >Confirm & Finalize Entry</Button>
+                        </>
+                    ) : (
+                        <div style={{ border: '1px solid #fef08a', background: '#fef9c3', padding: '1rem', borderRadius: '12px', marginTop: '1rem', textAlign: 'center' }}>
+                            <p style={{ color: '#a16207', fontWeight: 'bold', marginBottom: '0.5rem' }}>Member Verified</p>
+                            <p style={{ fontSize: '0.9rem', color: '#854d0e' }}>
+                                This QR code verifies the member has an active membership with their home club. 
+                                To activate their entry, you must first accept their visit request in your Tasks dashboard.
+                            </p>
+                            <Button fullWidth onClick={handleReset} variant="secondary" style={{ marginTop: '1rem' }}>Scan Another</Button>
+                        </div>
+                    )}
                 </Card>
             )}
 

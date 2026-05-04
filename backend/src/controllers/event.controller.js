@@ -1,5 +1,7 @@
 const Event = require('../models/Event.model');
 const Club = require('../models/Club.model');
+const Membership = require('../models/Membership.model');
+const IntroductionLetter = require('../models/IntroductionLetter.model');
 
 // @desc    Get all events
 // @route   GET /api/events
@@ -21,6 +23,46 @@ const getEvents = async (req, res) => {
         res.status(200).json(events);
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Get events for clubs the member has joined or is visiting
+// @route   GET /api/events/my-club-events
+// @access  Private/CLIENT
+const getMemberEvents = async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        // 1. Get clubs where the user is a member (Active)
+        const memberships = await Membership.find({ userId, status: 'active' });
+        const joinedClubIds = memberships.map(m => m.clubId.toString());
+
+        // 2. Get clubs the user is visiting (Intro Letter Approved or Accepted)
+        const visitingLetters = await IntroductionLetter.find({
+            memberId: userId,
+            status: { $in: ['APPROVED', 'ACCEPTED'] }
+        });
+        const visitingClubIds = visitingLetters.map(l => l.targetClubId.toString());
+
+        // Combine all unique club IDs
+        const allRelevantClubIds = [...new Set([...joinedClubIds, ...visitingClubIds])];
+
+        if (allRelevantClubIds.length === 0) {
+            return res.json([]);
+        }
+
+        // Fetch published events for these clubs
+        const events = await Event.find({
+            clubId: { $in: allRelevantClubIds },
+            status: 'published'
+        })
+            .populate('clubId', 'name image location')
+            .sort({ date: 1 });
+
+        res.json(events);
+    } catch (error) {
+        console.error('[ERROR] getMemberEvents:', error);
+        res.status(500).json({ message: 'Server Error: ' + error.message });
     }
 };
 
@@ -49,6 +91,10 @@ const createEvent = async (req, res) => {
             image: req.file ? `/uploads/events/${req.file.filename}` : undefined,
             createdBy: req.user.id
         });
+
+        // Populate the event with club and user data
+        await event.populate('clubId', 'name');
+        await event.populate('createdBy', 'name');
 
         res.status(201).json(event);
     } catch (error) {
@@ -81,6 +127,10 @@ const updateEvent = async (req, res) => {
             new: true,
             runValidators: true
         });
+
+        // Populate the event with club and user data
+        await event.populate('clubId', 'name');
+        await event.populate('createdBy', 'name');
 
         res.status(200).json(event);
     } catch (error) {
@@ -182,6 +232,7 @@ const seedEvents = async (req, res) => {
 
 module.exports = {
     getEvents,
+    getMemberEvents,
     createEvent,
     updateEvent,
     deleteEvent,

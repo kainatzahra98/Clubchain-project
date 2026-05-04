@@ -4,6 +4,7 @@ const Feedback = require('../models/Feedback.model');
 const Membership = require('../models/Membership.model');
 const IntroductionLetter = require('../models/IntroductionLetter.model');
 const Event = require('../models/Event.model');
+const Payment = require('../models/Payment.model');
 
 // @desc    Get dashboard statistics
 // @route   GET /api/dashboard/stats
@@ -19,6 +20,25 @@ const getStats = async (req, res) => {
             stats.totalMembers = stats.totalUsers;
             stats.totalFeedback = await Feedback.countDocuments();
             stats.negativeFeedback = await Feedback.countDocuments({ sentiment: 'negative', status: 'pending' });
+
+            // Calculate monthly revenue from successful payments
+            const startOfMonth = new Date();
+            startOfMonth.setDate(1);
+            startOfMonth.setHours(0, 0, 0, 0);
+            
+            const endOfMonth = new Date(startOfMonth);
+            endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+            
+            const monthlyPayments = await Payment.find({
+                status: 'succeeded',
+                createdAt: { $gte: startOfMonth, $lt: endOfMonth }
+            });
+            
+            stats.monthlyRevenue = monthlyPayments.reduce((sum, payment) => sum + payment.amount, 0);
+            stats.totalRevenue = await Payment.aggregate([
+                { $match: { status: 'succeeded' } },
+                { $group: { _id: null, total: { $sum: '$amount' } } }
+            ]).then(result => result[0]?.total || 0);
 
             // Fetch Recent Activities
             const [recentLetters, recentUsers, recentClubs] = await Promise.all([
@@ -65,9 +85,44 @@ const getStats = async (req, res) => {
             stats.recentActivities = activities;
         } else if (req.user.role === 'CLUB_ADMIN') {
             const clubId = req.user.clubId;
-            stats.totalMembers = await Membership.countDocuments({ clubId, status: 'active' });
-            stats.pendingRequests = await Membership.countDocuments({ clubId, status: 'pending' });
-            stats.clubFeedback = await Feedback.countDocuments({ clubId });
+            const club = await Club.findById(clubId);
+            
+            // Calculate recent feedback (last 7 days)
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            const [
+                totalMembers,
+                newMembersThisWeek,
+                pendingMemberships,
+                pendingHomeLetters,
+                pendingTargetLetters,
+                clubFeedback,
+                recentFeedbackCount
+            ] = await Promise.all([
+                Membership.countDocuments({ clubId, status: 'active' }),
+                Membership.countDocuments({ 
+                    clubId, 
+                    status: 'active',
+                    createdAt: { $gte: sevenDaysAgo }
+                }),
+                Membership.countDocuments({ clubId, status: 'pending' }),
+                IntroductionLetter.countDocuments({ homeClubId: clubId, status: 'PENDING' }),
+                IntroductionLetter.countDocuments({ targetClubId: clubId, status: 'APPROVED' }),
+                Feedback.countDocuments({ clubId }),
+                Feedback.countDocuments({ 
+                    clubId, 
+                    createdAt: { $gte: sevenDaysAgo } 
+                })
+            ]);
+
+            stats.totalMembers = totalMembers;
+            stats.newMembersThisWeek = newMembersThisWeek;
+            stats.pendingTasks = pendingMemberships + pendingHomeLetters + pendingTargetLetters;
+            stats.clubFeedback = clubFeedback;
+            stats.recentFeedbackCount = recentFeedbackCount;
+            stats.totalRevenue = club?.stats?.totalRevenue || 0;
+            stats.averageRating = club?.stats?.rating || 0;
         } else {
             // Client stats
             const activeMemberships = await Membership.find({ userId: req.user.id })
@@ -86,28 +141,43 @@ const getStats = async (req, res) => {
                     clubId: m.clubId._id
                 }));
 
-            // Get list of club IDs where user is a member (active or pending? usually active for events)
-            // User request: "events which are being held on the clubs in which that user registered"
-            // "Registered" implies active membership.
-            const myClubIds = activeMemberships
-                .filter(m => m.status === 'active' && m.clubId) // Ensure clubId is not null
-                .map(m => m.clubId._id);
+            // Get clubs where the user is a member (Active)
+            const membershipClubIds = activeMemberships
+                .filter(m => m.status === 'active' && m.clubId)
+                .map(m => m.clubId._id.toString());
 
-            // Fetch published events ONLY for my clubs
-            // If no clubs, maybe we return empty or random? Assuming empty for "my events".
-            // But for discovery, we might want all. The prompt says "show the events... on the clubs... registered".
-            // So strict filtering seems requested.
+            // Get clubs the user is visiting (Intro Letter Approved or Accepted)
+            const visitingLetters = await IntroductionLetter.find({
+                memberId: req.user.id,
+                status: { $in: ['APPROVED', 'ACCEPTED'] }
+            }).populate('targetClubId', 'name location');
+
+            stats.visitingClubs = visitingLetters
+                .filter(l => l.targetClubId)
+                .map(l => ({
+                    clubId: l.targetClubId._id,
+                    clubName: l.targetClubId.name,
+                    clubLocation: l.targetClubId.location,
+                    status: 'visitor'
+                }));
+
+            const visitingClubIds = visitingLetters
+                .filter(l => l.targetClubId)
+                .map(l => l.targetClubId._id.toString());
+
+            // (REMOVED) Guest clubs are no longer shown in the dashboard switcher as per user request
+            // Only joined and actively visiting clubs should be available.
+
+
+            // Combine all unique club IDs for event visibility (STRICTLY joined and visited clubs only)
+            const strictEventClubIds = [...new Set([...membershipClubIds, ...visitingClubIds])];
 
             let eventQuery = { status: 'published', date: { $gte: new Date() } };
-            if (myClubIds.length > 0) {
-                eventQuery.clubId = { $in: myClubIds };
+            if (strictEventClubIds.length > 0) {
+                eventQuery.clubId = { $in: strictEventClubIds };
             } else {
-                // If not a member of any club, show no events (or maybe global events if we had them)
-                // For now, strict filter means no events if no clubs. 
-                // However, to avoid empty dashboard look, maybe we skip adding clubId filter if empty?
-                // No, "show events... in which user registered" implies specific relevance.
-                // I will strictly filter, but if the list is empty, I'll return an empty list so the frontend says "No upcoming events".
-                eventQuery.clubId = { $in: [] }; // Force empty if no clubs
+                // User has explicitly requested that events only show for clubs they joined/visited
+                eventQuery.clubId = { $in: [] };
             }
 
             stats.upcomingEvents = await Event.find(eventQuery)

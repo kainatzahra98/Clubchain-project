@@ -1,12 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import './MobileContainer.css';
-import { FaHome, FaSearch, FaUser, FaBell, FaCommentDots, FaCalendarAlt } from 'react-icons/fa';
+import { FaHome, FaSearch, FaUser, FaBell, FaCommentDots, FaCalendarAlt, FaCog, FaInfoCircle } from 'react-icons/fa';
 import { Link, useLocation } from 'react-router-dom';
+import api from '../../utils/api';
 import logo from '../../assets/logo.png';
 
 const MobileContainer = ({ children, role = 'client' }) => {
     const location = useLocation();
+    const [clubStatus, setClubStatus] = useState(null);
     const themeClass = role === 'client' ? 'theme-dark' : 'theme-hybrid';
+
+    useEffect(() => {
+        if (role === 'club-admin') {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (user.clubId) {
+                api.get(`/clubs/${user.clubId._id || user.clubId}`)
+                    .then(res => setClubStatus(res.data.status))
+                    .catch(() => setClubStatus('error'));
+            } else {
+                setClubStatus('no-club');
+            }
+        }
+    }, [role]);
 
     const clientNav = [
         { icon: <FaHome />, path: '/client', label: 'Home' },
@@ -16,15 +31,36 @@ const MobileContainer = ({ children, role = 'client' }) => {
         { icon: <FaUser />, path: '/client/profile', label: 'Profile' }
     ];
 
-    const adminNav = [
+    // Full admin nav for active clubs
+    const adminNavFull = [
         { icon: <FaHome />, path: '/club-admin', label: 'Club-Admin' },
         { icon: <FaSearch />, path: '/club-admin/members', label: 'Members' },
         { icon: <FaBell />, path: '/club-admin/tasks', label: 'Tasks' },
         { icon: <FaCalendarAlt />, path: '/club-admin/events', label: 'Events' },
-        { icon: <FaUser />, path: '/club-admin/settings', label: 'Settings' }
+        { icon: <FaCog />, path: '/club-admin/settings', label: 'Settings' }
     ];
 
-    const navItems = role === 'client' ? clientNav : adminNav;
+    // Limited nav for pending/inactive clubs - only Settings and Status
+    const adminNavLimited = [
+        { icon: <FaInfoCircle />, path: '/club-admin/club-status', label: 'Status' },
+        { icon: <FaCog />, path: '/club-admin/settings', label: 'Settings' }
+    ];
+
+    // For club-admin, determine which nav to show
+    let navItems;
+    if (role === 'client') {
+        navItems = clientNav;
+    } else {
+        // If status is still loading (null), show full nav as default
+        // This prevents the tab bar from disappearing when club is active
+        if (clubStatus === null) {
+            navItems = adminNavFull; // Default to full nav while loading
+        } else if (clubStatus === 'active') {
+            navItems = adminNavFull;
+        } else {
+            navItems = adminNavLimited; // pending, inactive, no-club, error
+        }
+    }
 
     return (
         <div className={`mobile-wrapper ${themeClass}`}>

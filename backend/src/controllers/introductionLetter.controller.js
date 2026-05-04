@@ -67,9 +67,11 @@ exports.requestLetter = async (req, res) => {
             duration: parseInt(req.body.duration) || 1
         });
 
+        const targetClub = await Club.findById(targetClubId).select('name');
+
         await Task.create({
             title: 'Intro Letter Request',
-            description: `${req.user.name || 'A member'} requested a letter to visit ${homeClub.affiliatedClubs.find(c => c._id.toString() === targetClubId)?.name || 'a club'}.`,
+            description: `${req.user.name || 'A member'} requested a letter to visit ${targetClub?.name || 'an affiliated club'}.`,
             clubId: homeClub._id,
             type: 'INTRO_LETTER_APPROVAL',
             priority: 'medium',
@@ -129,7 +131,10 @@ exports.getPendingLetters = async (req, res) => {
 exports.updateLetterStatus = async (req, res) => {
     try {
         const { status, rejectionReason } = req.body;
-        const letter = await IntroductionLetter.findById(req.params.id);
+        const letter = await IntroductionLetter.findById(req.params.id)
+            .populate('memberId', 'name email')
+            .populate('homeClubId', 'name')
+            .populate('targetClubId', 'name');
 
         if (!letter) {
             return res.status(404).json({ message: 'Letter not found' });
@@ -137,7 +142,11 @@ exports.updateLetterStatus = async (req, res) => {
 
         // Verify admin belongs to the home club
         const admin = await User.findById(req.user.id).populate('clubId');
-        if (letter.homeClubId.toString() !== admin.clubId.toString() && admin.role !== 'SYSTEM_ADMIN') {
+        
+        const letterHomeId = letter.homeClubId._id ? letter.homeClubId._id.toString() : letter.homeClubId.toString();
+        const adminClubId = admin.clubId?._id ? admin.clubId._id.toString() : admin.clubId?.toString();
+
+        if (letterHomeId !== adminClubId && admin.role !== 'SYSTEM_ADMIN') {
             return res.status(403).json({ message: 'Not authorized to approve for this club' });
         }
 
@@ -150,11 +159,48 @@ exports.updateLetterStatus = async (req, res) => {
     }
 };
 
+// @desc    Get processed letters for home club admin (History)
+// @route   GET /api/intro-letters/processed
+// @access  Private (Club Admin)
+exports.getProcessedLetters = async (req, res) => {
+    try {
+        const admin = await User.findById(req.user.id);
+        if (!admin.clubId) {
+            return res.status(400).json({ message: 'Admin is not associated with any club' });
+        }
+
+        const letters = await IntroductionLetter.find({
+            $or: [
+                { homeClubId: admin.clubId, status: { $ne: 'PENDING' } },
+                { targetClubId: admin.clubId, status: { $in: ['ACCEPTED', 'REJECTED'] } }
+            ]
+        })
+            .populate('memberId', 'name email image')
+            .populate('homeClubId', 'name')
+            .populate('targetClubId', 'name')
+            .sort({ updatedAt: -1 });
+
+        res.json(letters);
+    } catch (error) {
+        console.error('[ERROR] getProcessedLetters:', error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
 // Logic shared between task handler and direct letter update
 exports.processLetterApproval = async (letter, status, rejectionReason, admin) => {
     letter.status = status;
     if (status === 'REJECTED') {
         letter.rejectionReason = rejectionReason;
+
+        // Notify Member of Rejection
+        await Notification.create({
+            userId: letter.memberId,
+            type: 'alert',
+            title: 'Intro Letter Request Declined',
+            message: `Your request for an Introduction Letter was declined. Reason: ${rejectionReason || 'Club discretion'}.`,
+            relatedId: letter._id
+        });
     } else if (status === 'APPROVED') {
         const visit = new Date(letter.visitDate);
         const duration = letter.duration || 1;
@@ -162,10 +208,11 @@ exports.processLetterApproval = async (letter, status, rejectionReason, admin) =
         expiryDate.setDate(visit.getDate() + duration);
         letter.expiryDate = expiryDate;
 
+        // Generate QR Token for authenticity verification
         const payload = {
             letterId: letter._id,
-            memberId: letter.memberId,
-            homeClubId: letter.homeClubId,
+            memberId: letter.memberId?._id || letter.memberId,
+            homeClubId: letter.homeClubId?._id || letter.homeClubId,
             type: 'INTRO_LETTER'
         };
 
@@ -174,17 +221,17 @@ exports.processLetterApproval = async (letter, status, rejectionReason, admin) =
 
         // Notify Member
         await Notification.create({
-            userId: letter.memberId,
+            userId: letter.memberId?._id || letter.memberId,
             type: 'alert',
-            title: 'Intro Letter Approved!',
-            message: `Your request to visit a club has been approved. You can now download your letter with QR code.`,
+            title: 'Request Approved by Home Club',
+            message: `Your visit request has been approved by ${admin.clubId?.name || 'your home club'}. You can now download your letter for authenticity verification. It has been sent to the destination club for final confirmation.`,
             relatedId: letter._id
         });
 
         // Notify Target Club (via Task)
         await Task.create({
             title: 'Incoming Visitor Expected',
-            description: `A member from ${admin.clubId.name || 'affiliated club'} has been approved for a visit on ${new Date(letter.visitDate).toLocaleDateString()}.`,
+            description: `A member from ${admin.clubId?.name || 'affiliated club'} has been approved for a visit on ${new Date(letter.visitDate).toLocaleDateString()}.`,
             clubId: letter.targetClubId,
             type: 'NOTIFICATION',
             priority: 'low',
@@ -208,7 +255,7 @@ exports.processLetterApproval = async (letter, status, rejectionReason, admin) =
             clubId: letter.targetClubId,
             type: 'VISIT_CONFIRMATION',
             title: title,
-            description: `${title} from ${admin.clubId.name || 'Home Club'} on ${new Date(letter.visitDate).toLocaleDateString()}`,
+            description: `${title} from ${admin.clubId?.name || 'Home Club'} on ${new Date(letter.visitDate).toLocaleDateString()}`,
             relatedId: letter._id,
             relatedModel: 'IntroductionLetter',
             status: 'pending',
@@ -224,6 +271,16 @@ exports.processLetterApproval = async (letter, status, rejectionReason, admin) =
 // @access  Private (Owner or Target Club Admin)
 exports.downloadLetter = async (req, res) => {
     try {
+        // Support query token for mobile browser download
+        if (req.query.token && !req.user) {
+            try {
+                const decoded = jwt.verify(req.query.token, process.env.JWT_SECRET);
+                req.user = await User.findById(decoded.id).select('-password');
+            } catch (err) {
+                return res.status(401).json({ message: 'Invalid token' });
+            }
+        }
+
         const letter = await IntroductionLetter.findById(req.params.id)
             .populate('memberId', 'name email')
             .populate('homeClubId', 'name location')
@@ -234,51 +291,107 @@ exports.downloadLetter = async (req, res) => {
         }
 
         if (letter.status !== 'APPROVED' && letter.status !== 'ACCEPTED') {
-            return res.status(400).json({ message: 'Letter is not valid (must be Approved or Accepted)' });
+            return res.status(400).json({ message: 'Letter is not valid (must be Approved by Home Club or Accepted by Destination)' });
         }
 
-        // Generate QR Code Data URL
-        const qrCodeDataUrl = await QRCode.toDataURL(letter.qrToken);
+        // If letter is only APPROVED (not yet ACCEPTED), we might want to restrict certain info or add a warning
+        const isFullyAccepted = letter.status === 'ACCEPTED';
+
+        // Generate High-Res QR Code Data URL if token exists
+        let qrCodeDataUrl = null;
+        if (letter.qrToken) {
+            qrCodeDataUrl = await QRCode.toDataURL(letter.qrToken, { width: 500, margin: 2 });
+        }
 
         const doc = new PDFDocument();
 
         // Stream PDF to client
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=IntroLetter-${letter._id}.pdf`);
+
+        // Determine whether to view (inline) or download (attachment)
+        const disposition = req.query.type === 'view' ? 'inline' : 'attachment';
+        res.setHeader('Content-Disposition', `${disposition}; filename=IntroLetter-${letter._id}.pdf`);
+
         doc.pipe(res);
 
-        // PDF Content
-        doc.fontSize(25).text('Introduction Letter', { align: 'center' });
-        doc.moveDown();
-        doc.fontSize(12).text(`Letter ID: ${letter._id}`, { align: 'center', color: 'grey' });
-        doc.moveDown();
-        if (letter.status === 'ACCEPTED') {
+        // --- PDF DESIGN ---
+        const pageW = doc.page.width;
+        const margin = 50;
+
+        // Add a subtle border
+        doc.rect(20, 20, pageW - 40, doc.page.height - 40).strokeColor('#e2e8f0').lineWidth(1).stroke();
+
+        // Watermark for Confirmed but not yet activated visits (Drawn first so it's in background)
+        if (letter.status === 'ACCEPTED' && !letter.visitStartedAt) {
             doc.save();
-            doc.rotate(-45, { origin: [300, 300] });
-            doc.fontSize(50).fillColor('green').text('VISIT CONFIRMED', 100, 300, { align: 'center', opacity: 0.3 });
+            doc.fontSize(60).fillColor('#10b981', 0.1).rotate(-45, { origin: [pageW / 2, 400] });
+            doc.text('VISIT CONFIRMED', 0, 400, { align: 'center', width: pageW });
             doc.restore();
         }
 
-        doc.fontSize(14).text(`Date: ${new Date().toLocaleDateString()}`);
-        doc.moveDown();
+        // Header Section
+        const isOfficial = letter.status === 'ACCEPTED' || letter.visitStartedAt;
+        const mainTitle = isOfficial ? 'Official Certificate of Introduction' : 'Letter of Introduction';
 
-        doc.text(`To: The Management of ${letter.targetClubId.name}`);
-        doc.text(`Location: ${letter.targetClubId.location}`);
-        doc.moveDown();
+        doc.y = 50;
+        doc.x = margin;
+        doc.fillColor('#1e293b').fontSize(22).text(mainTitle, { align: 'center', fontWeight: 'bold' });
+        doc.fontSize(8).fillColor('#64748b').text(`Document Reference: ${letter._id}`, { align: 'center' });
+        doc.moveDown(1);
 
-        doc.text('Subject: Letter of Introduction');
-        doc.moveDown();
+        // Top Info Row
+        const topY = doc.y;
+        doc.fillColor('#0f172a').fontSize(10).text(`Issued: ${new Date(letter.createdAt).toLocaleDateString()}`, margin, topY, { align: 'left' });
+        doc.text(`Expiry: ${new Date(letter.expiryDate).toLocaleDateString()}`, margin, topY, { align: 'right' });
+        
+        doc.x = margin;
+        doc.y = topY + 30;
 
-        doc.text(`We are pleased to introduce our valued member, ${letter.memberId.name}, who is a member in good standing at ${letter.homeClubId.name}.`);
-        doc.moveDown();
+        // Two Column Info (From / To)
+        const colW = (pageW - (margin * 2)) / 2;
+        const midY = doc.y;
+        
+        // Home Club (From)
+        doc.fontSize(10).fillColor('#64748b').text('HOME CLUB', margin, midY);
+        doc.fontSize(12).fillColor('#0f172a').text(letter.homeClubId.name, margin, midY + 15, { width: colW, fontWeight: 'bold' });
+        
+        // Target Club (To)
+        doc.fontSize(10).fillColor('#64748b').text('DESTINATION CLUB', margin + colW, midY);
+        doc.fontSize(12).fillColor('#0f172a').text(letter.targetClubId.name, margin + colW, midY + 15, { width: colW, fontWeight: 'bold' });
+        doc.fontSize(9).text(letter.targetClubId.location || 'Affiliated Location', margin + colW, midY + 30);
+        
+        doc.x = margin;
+        doc.y = midY + 70;
 
-        doc.text(`Please extend to them the courtesies of your club during their visit on ${new Date(letter.visitDate).toLocaleDateString()}.`);
-        doc.moveDown();
+        // Body Section
+        const subject = isOfficial ? 'Subject: Confirmation of Reciprocal Privileges' : 'Subject: Official Introduction of Club Member';
+        doc.fontSize(11).fillColor('#334155').text(subject, { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#334155').text(`This certificate confirms that `, { continued: true });
+        doc.fillColor('#0f172a').fontSize(11).text(letter.memberId.name, { fontWeight: 'bold', continued: true });
+        doc.fillColor('#334155').fontSize(10).text(` is a verified member in good standing at `, { continued: true });
+        doc.fillColor('#0f172a').text(`${letter.homeClubId.name}.`, { fontWeight: 'bold' });
+        
+        doc.moveDown(0.5);
+        doc.fillColor('#334155').text(`We authorize and request that your club extends standard reciprocal privileges to them during their visit.`);
+        
+        doc.moveDown(1.5);
+        
+        // Visit Details Box
+        const visitBoxY = doc.y;
+        doc.rect(margin, visitBoxY, pageW - (margin * 2), 50).fill('#f8fafc');
+        
+        doc.x = margin + 15;
+        doc.y = visitBoxY + 10;
+        doc.fillColor('#475569').fontSize(9).text('VISIT PASS DETAILS');
+        doc.moveDown(0.2);
+        doc.fillColor('#0f172a').fontSize(10).text(`Approved Date: ${new Date(letter.visitDate).toLocaleDateString()}  |  Duration: ${letter.duration} Day(s)`);
+        doc.text(`Purpose: ${letter.purpose}`);
+        
+        doc.x = margin;
+        doc.y = visitBoxY + 65;
 
-        doc.text(`Purpose of Visit: ${letter.purpose}`);
-        doc.moveDown();
-
-        // Include Membership Details
+        // Membership Box
         const membership = await Membership.findOne({
             userId: letter.memberId._id,
             clubId: letter.homeClubId._id,
@@ -286,32 +399,60 @@ exports.downloadLetter = async (req, res) => {
         }).populate('planId');
 
         if (membership && membership.planId) {
-            doc.fontSize(14).text('Membership Subscription Details:', { underline: true });
-            doc.fontSize(12).text(`Plan: ${membership.planId.title}`);
-            doc.moveDown(0.5);
-            doc.text('Included Services:');
-            (membership.planId.features || []).forEach(feature => {
-                doc.text(`- ${feature}`, { indent: 20 });
-            });
-            doc.moveDown();
+            const planBoxY = doc.y;
+            doc.rect(margin, planBoxY, pageW - (margin * 2), 60).fill('#f1f5f9');
+            
+            doc.x = margin + 15;
+            doc.y = planBoxY + 10;
+            doc.fillColor('#475569').fontSize(9).text('MEMBERSHIP TIER');
+            doc.moveDown(0.2);
+            doc.fillColor('#0f172a').fontSize(11).text(membership.planId.title, { fontWeight: 'bold' });
+            
+            const features = (membership.planId.features || []).slice(0, 4).join(' • ');
+            doc.fontSize(9).fillColor('#64748b').text(features, { width: pageW - (margin * 2) - 30 });
+            
+            doc.x = margin;
+            doc.y = planBoxY + 75;
         }
 
-        doc.moveDown();
-        doc.moveDown();
-        if (letter.status === 'ACCEPTED') {
-            doc.fontSize(12).fillColor('black').text('Status: VERIFIED ENTRY', { align: 'center', color: 'green' });
-            doc.fontSize(10).text(`This letter was accepted and verified by ${letter.targetClubId.name}`, { align: 'center' });
-        } else {
-            doc.fontSize(12).text('Verification QR Code:', { align: 'center' });
-            doc.moveDown(0.5);
-            doc.image(qrCodeDataUrl, { fit: [150, 150], x: (doc.page.width - 150) / 2 });
-            doc.moveDown();
-            doc.text('Scan this code at the visiting club reception', { align: 'center', size: 10, color: 'grey' });
+        // Verification Footer (QR or Activated Status)
+        doc.moveDown(1);
+        const footerY = doc.y;
+
+        if (letter.visitStartedAt) {
+            doc.rect(margin, footerY, pageW - (margin * 2), 50).fill('#ecfdf5');
+            doc.x = margin;
+            doc.y = footerY + 15;
+            doc.fillColor('#059669').fontSize(14).text('✓ SECURE ENTRY VERIFIED', { align: 'center', fontWeight: 'bold' });
+            doc.fontSize(9).fillColor('#065f46').text(`Scan Authorized at ${new Date(letter.visitStartedAt).toLocaleString()}`, { align: 'center' });
+        } else if (qrCodeDataUrl) {
+            doc.x = margin;
+            doc.y = footerY;
+            doc.fillColor('#1e293b').fontSize(10).text('OFFICIAL ACTIVATION CODE', { align: 'center', fontWeight: 'bold' });
+            doc.moveDown(1);
+            const qrSize = 140;
+            const qrX = (pageW - qrSize) / 2;
+            const qrY = doc.y;
+            
+            // Draw a solid white background to block the watermark
+            // Padding only goes up by 5px so it doesn't clip the text above
+            doc.rect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10).fill('white');
+            
+            doc.image(qrCodeDataUrl, { fit: [qrSize, qrSize], x: qrX, y: qrY });
+            
+            doc.y = qrY + qrSize + 10;
+            doc.x = margin;
+            doc.fontSize(8).fillColor('#64748b').text('Reception: Scan this code to authenticate and activate the visit.', { align: 'center' });
+            
+            if (letter.status === 'APPROVED') {
+                doc.moveDown(0.5);
+                doc.fontSize(9).fillColor('#b45309').text('AUTHENTICITY VERIFIED • Awaiting Destination Confirmation', { align: 'center', fontWeight: 'bold' });
+            }
         }
 
-        doc.moveDown();
-        doc.moveDown();
-        doc.fontSize(10).text(`Letter Expiry: ${new Date(letter.expiryDate).toLocaleDateString()}`, { align: 'right' });
+        // Final Stamp/Note
+        doc.moveDown(2);
+        doc.fontSize(7).fillColor('#94a3b8').text('This document is electronically generated and verified via the ClubChain Secure Network.', { align: 'center' });
 
         doc.end();
 
@@ -354,12 +495,16 @@ exports.verifyLetter = async (req, res) => {
             return res.status(404).json({ isValid: false, message: 'Letter record not found' });
         }
 
-        if (letter.status !== 'APPROVED') {
-            return res.status(400).json({ isValid: false, message: `Letter is ${letter.status}` });
+        if (letter.status !== 'APPROVED' && letter.status !== 'ACCEPTED') {
+            return res.status(400).json({ isValid: false, message: `Visit is ${letter.status}` });
         }
 
         if (new Date() > new Date(letter.expiryDate)) {
             return res.status(400).json({ isValid: false, message: 'Letter has expired' });
+        }
+
+        if (letter.visitStartedAt) {
+            return res.status(400).json({ isValid: false, message: 'This QR code has already been scanned and activated' });
         }
 
         // Check if verifying admin belongs to target club or home club (or system admin)
@@ -405,6 +550,7 @@ exports.verifyLetter = async (req, res) => {
             isValid,
             message: isValid ? 'Valid Membership' : 'Membership Not Active',
             letterId: letter._id,
+            letterStatus: letter.status,
             member: {
                 name: letter.memberId.name,
                 email: letter.memberId.email,
@@ -441,18 +587,73 @@ exports.getIncomingVisitors = async (req, res) => {
             return res.status(400).json({ message: 'Admin is not associated with any club' });
         }
 
+        // Include EXPIRED so they can see past visitors and notify them to re-request
         const letters = await IntroductionLetter.find({
             targetClubId: admin.clubId,
-            status: { $in: ['APPROVED', 'ACCEPTED'] }
+            status: { $in: ['APPROVED', 'ACCEPTED', 'EXPIRED'] }
         })
             .populate('memberId', 'name email image')
             .populate('homeClubId', 'name')
-            .sort({ visitDate: 1 });
+            .sort({ visitDate: -1 });
 
-        res.json(letters);
+        // Manually attach membership/plan info for each visitor
+        const enrichedLetters = await Promise.all(letters.map(async (letter) => {
+            const membership = await Membership.findOne({
+                userId: letter.memberId?._id,
+                clubId: letter.homeClubId?._id
+            }).populate('planId');
+
+            const letterObj = letter.toObject();
+            letterObj.membership = membership;
+            return letterObj;
+        }));
+
+        res.json(enrichedLetters);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Notify member to re-request visit
+// @route   POST /api/intro-letters/:id/notify-re-request
+// @access  Private (Club Admin)
+exports.notifyMemberToReRequest = async (req, res) => {
+    try {
+        const letter = await IntroductionLetter.findById(req.params.id).populate('targetClubId', 'name');
+        if (!letter) {
+            return res.status(404).json({ message: 'Letter not found' });
+        }
+
+        const admin = await User.findById(req.user.id);
+
+        // Robust check for authorization
+        const isAdminForClub = admin.clubId && letter.targetClubId && letter.targetClubId._id.toString() === admin.clubId.toString();
+        const isSystemAdmin = admin.role === 'SYSTEM_ADMIN';
+
+        if (!isAdminForClub && !isSystemAdmin) {
+            return res.status(403).json({ message: 'Not authorized for this club' });
+        }
+
+        const targetClubName = letter.targetClubId?.name || "the club";
+
+        const newNotification = await Notification.create({
+            userId: letter.memberId,
+            type: 'alert',
+            title: 'Visit Expired / Expiring',
+            message: `Your visit to ${targetClubName} has expired or is expiring soon. If you wish to continue your visit, please request a new Introduction Letter through the app.`,
+            relatedId: letter._id
+        });
+
+        res.json({
+            message: 'Notification sent successfully',
+            notificationId: newNotification._id,
+            recipientId: newNotification.userId
+        });
+
+    } catch (error) {
+        console.error('[ERROR] notifyMemberToReRequest:', error);
+        res.status(500).json({ message: 'Server Error: ' + error.message });
     }
 };
 
@@ -488,11 +689,26 @@ exports.acceptLetter = async (req, res) => {
         }
 
         const admin = await User.findById(req.user.id);
-        if (letter.targetClubId.toString() !== admin.clubId.toString() && admin.role !== 'SYSTEM_ADMIN') {
+        const adminClubId = admin.clubId ? admin.clubId.toString() : null;
+        const targetClubIdStr = letter.targetClubId ? letter.targetClubId.toString() : '';
+
+        if (targetClubIdStr !== adminClubId && admin.role !== 'SYSTEM_ADMIN') {
             return res.status(403).json({ message: 'Not authorized to accept for this club' });
         }
 
         letter.status = 'ACCEPTED';
+        
+        // Generate QR code upon acceptance
+        const payload = {
+            letterId: letter._id,
+            memberId: letter.memberId,
+            homeClubId: letter.homeClubId,
+            type: 'INTRO_LETTER'
+        };
+
+        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '30d' });
+        letter.qrToken = token;
+
         await letter.save();
 
         // Close the Visit Confirmation Task
@@ -506,7 +722,7 @@ exports.acceptLetter = async (req, res) => {
             userId: letter.memberId,
             type: 'alert',
             title: 'Visit Confirmed!',
-            message: `Your visit to ${admin.clubId.toString() === letter.targetClubId.toString() ? 'our club' : 'the target club'} has been accepted. Enjoy your stay!`,
+            message: `Your visit to ${admin.clubId && admin.clubId.toString() === letter.targetClubId.toString() ? 'our club' : 'the target club'} has been accepted. Enjoy your stay!`,
             relatedId: letter._id
         });
 
@@ -536,7 +752,10 @@ exports.rejectLetter = async (req, res) => {
         }
 
         const admin = await User.findById(req.user.id);
-        if (letter.targetClubId.toString() !== admin.clubId.toString() && admin.role !== 'SYSTEM_ADMIN') {
+        const adminClubId = admin.clubId ? admin.clubId.toString() : null;
+        const targetClubIdStr = letter.targetClubId ? letter.targetClubId.toString() : '';
+
+        if (targetClubIdStr !== adminClubId && admin.role !== 'SYSTEM_ADMIN') {
             return res.status(403).json({ message: 'Not authorized to reject for this club' });
         }
 
@@ -555,13 +774,72 @@ exports.rejectLetter = async (req, res) => {
             userId: letter.memberId,
             type: 'alert',
             title: 'Visit Request Declined',
-            message: `Your visit to ${admin.clubId.toString() === letter.targetClubId.toString() ? 'our club' : 'the target club'} was declined. Reason: ${rejectionReason || 'Club discretion'}. Please check your membership status or contact support.`,
+            message: `Your visit to ${admin.clubId && admin.clubId.toString() === letter.targetClubId.toString() ? 'our club' : 'the target club'} was declined. Reason: ${rejectionReason || 'Club discretion'}. Please check your membership status or contact support.`,
             relatedId: letter._id
         });
 
         res.json({ message: 'Visit rejected successfully', letter });
     } catch (error) {
         console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+// @desc    Activate Letter (On-site Scan)
+// @route   PUT /api/intro-letters/:id/activate
+// @access  Private (Target Club Admin)
+exports.activateLetter = async (req, res) => {
+    try {
+        const letter = await IntroductionLetter.findById(req.params.id);
+        if (!letter) {
+            return res.status(404).json({ message: 'Letter not found' });
+        }
+
+        if (letter.visitStartedAt) {
+            return res.status(400).json({ message: 'Visit already activated' });
+        }
+
+        letter.status = 'ACCEPTED';
+        letter.visitStartedAt = new Date();
+        
+        // Finalize expiry from the moment of activation
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + (letter.duration || 1));
+        letter.expiryDate = expiryDate;
+
+        await letter.save();
+
+        res.json({ message: 'Visit activated successfully', letter });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server Error' });
+    }
+};
+
+// @desc    Delete Intro Letter
+// @route   DELETE /api/intro-letters/:id
+// @access  Private (Owner or Admin)
+exports.deleteLetter = async (req, res) => {
+    console.log(`[CONTROLLER DEBUG] deleteLetter called for ID: ${req.params.id}`);
+    try {
+        const letter = await IntroductionLetter.findById(req.params.id);
+
+        if (!letter) {
+            return res.status(404).json({ message: 'Letter not found' });
+        }
+
+        // Verify ownership or admin role
+        if (letter.memberId.toString() !== req.user.id && req.user.role !== 'SYSTEM_ADMIN') {
+            return res.status(403).json({ message: 'Not authorized to delete this letter' });
+        }
+
+        // Also delete associated tasks
+        await Task.deleteMany({ relatedId: letter._id, relatedModel: 'IntroductionLetter' });
+
+        await letter.deleteOne();
+
+        res.json({ message: 'Letter and associated tasks removed successfully' });
+    } catch (error) {
+        console.error('[ERROR] deleteLetter:', error);
         res.status(500).json({ message: 'Server Error' });
     }
 };

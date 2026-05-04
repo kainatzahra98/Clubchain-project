@@ -1,6 +1,6 @@
 import React from 'react';
 
-const Button = ({ children, variant = 'primary', onClick, style = {}, fullWidth = false }) => {
+const Button = ({ children, variant = 'primary', onClick, style = {}, fullWidth = false, type = 'button', disabled = false }) => {
     const baseStyle = {
         padding: '0.75rem 1.5rem',
         borderRadius: '12px',
@@ -24,6 +24,11 @@ const Button = ({ children, variant = 'primary', onClick, style = {}, fullWidth 
             color: '#333',
             border: '1px solid rgba(0, 0, 0, 0.1)'
         },
+        outline: {
+            background: 'transparent',
+            color: '#3a7bd5',
+            border: '1px solid #3a7bd5'
+        },
         danger: {
             background: 'rgba(220, 53, 69, 0.2)',
             color: '#ff6b6b',
@@ -38,8 +43,10 @@ const Button = ({ children, variant = 'primary', onClick, style = {}, fullWidth 
 
     return (
         <button
+            type={type}
             onClick={onClick}
-            style={{ ...baseStyle, ...variants[variant] }}
+            disabled={disabled}
+            style={{ ...baseStyle, ...variants[variant], ...(disabled && { opacity: 0.6, cursor: 'not-allowed' }) }}
         >
             {children}
         </button>

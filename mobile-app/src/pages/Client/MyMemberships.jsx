@@ -93,7 +93,7 @@ const MyMemberships = () => {
                             style={{ background: 'rgba(0,0,0,0.05)', color: '#64748b', fontSize: '0.8rem' }}
                             onClick={() => {
                                 localStorage.clear();
-                                window.location.href = '/login';
+                                navigate('/login');
                             }}
                         >
                             Hard Reset Session
@@ -127,8 +127,12 @@ const MyMemberships = () => {
                                             borderRadius: '20px',
                                             fontSize: '0.75rem',
                                             fontWeight: '600',
-                                            backgroundColor: membership.status === 'active' ? '#dcfce7' : '#fee2e2',
-                                            color: membership.status === 'active' ? '#166534' : '#991b1b',
+                                            backgroundColor: 
+                                                membership.status === 'active' ? '#dcfce7' : 
+                                                membership.status === 'visitor' ? '#eff6ff' : '#fee2e2',
+                                            color: 
+                                                membership.status === 'active' ? '#166534' : 
+                                                membership.status === 'visitor' ? '#1e40af' : '#991b1b',
                                             textTransform: 'capitalize'
                                         }}>
                                             {membership.status}

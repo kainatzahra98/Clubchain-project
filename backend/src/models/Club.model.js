@@ -26,7 +26,8 @@ const clubSchema = new mongoose.Schema({
     stats: {
         membersCount: { type: Number, default: 0 },
         eventsCount: { type: Number, default: 0 },
-        rating: { type: Number, default: 0 }
+        rating: { type: Number, default: 0 },
+        totalRevenue: { type: Number, default: 0 }
     },
     affiliatedClubs: [{
         type: mongoose.Schema.Types.ObjectId,

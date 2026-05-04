@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { Browser } from '@capacitor/browser';
+import { Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import Toast from '../../components/UI/Toast';
-import { FaCheck, FaTimes, FaUser, FaClock, FaFileAlt, FaQrcode, FaFilePdf } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaUser, FaClock, FaFileAlt, FaQrcode, FaFilePdf, FaDownload, FaHistory, FaTrash } from 'react-icons/fa';
 import api from '../../utils/api';
 import MemberDetails from './MemberDetails';
 
@@ -13,16 +16,129 @@ const Tasks = () => {
     const [selectedMember, setSelectedMember] = useState(null);
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-    const handlePdfAction = async (id, e) => {
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user || !user.token) {
+            navigate('/login');
+        }
+    }, []);
+
+    const handlePdfAction = async (id, mode = 'view', e) => {
         if (e) e.stopPropagation();
         try {
-            const response = await api.get(`/intro-letters/${id}/download`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-            window.open(url, '_blank');
+            // Get token for authentication
+            const userStr = localStorage.getItem('user');
+            const token = userStr ? JSON.parse(userStr)?.token : null;
+
+            if (!token) {
+                setToast({ message: 'Session expired. Please login again.', type: 'error' });
+                return;
+            }
+
+            // Construct the absolute URL for the download/view
+            const baseURL = api.defaults.baseURL || import.meta.env.VITE_API_URL || 'https://clubchain-backend.vercel.app/api';
+            const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+            const pdfUrl = `${cleanBaseURL}/intro-letters/${id}/download?token=${token}&type=${mode}`;
+
+            console.log('Mobile PDF action:', mode, 'URL:', pdfUrl);
+
+            if (mode === 'view') {
+                // Try to fetch the PDF first and create a blob URL
+                try {
+                    const response = await fetch(pdfUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    // Get the blob and create a data URL
+                    const blob = await response.blob();
+                    const dataUrl = URL.createObjectURL(blob);
+                    
+                    // Open the blob URL in the browser
+                    await Browser.open({ url: dataUrl });
+                    
+                    // Clean up the blob URL after a delay
+                    setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
+                    
+                } catch (fetchError) {
+                    console.error('Fetch failed, trying direct URL:', fetchError);
+                    
+                    // Fallback: try direct URL (might trigger download)
+                    await Browser.open({ url: pdfUrl });
+                }
+            } else {
+                // Download mode - save file to device
+                try {
+                    const response = await fetch(pdfUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const blob = await response.blob();
+                    const reader = new FileReader();
+                    
+                    reader.onloadend = async () => {
+                        const base64data = reader.result;
+                        
+                        try {
+                            // Save file to device
+                            const fileName = `intro-letter-${id}.pdf`;
+                            const result = await Filesystem.writeFile({
+                                path: fileName,
+                                data: base64data.split(',')[1], // Remove data:application/pdf;base64, prefix
+                                directory: 'Downloads'
+                            });
+                            
+                            console.log('File saved successfully:', result);
+                            setToast({ message: 'PDF saved to your device downloads!', type: 'success' });
+                            
+                            // Try to share the file as well
+                            try {
+                                await Share.share({
+                                    title: 'Introduction Letter',
+                                    text: 'My ClubChain Introduction Letter',
+                                    url: result.uri,
+                                    dialogTitle: 'Share Introduction Letter'
+                                });
+                            } catch (shareError) {
+                                console.log('Share cancelled or not available');
+                            }
+                            
+                        } catch (fileError) {
+                            console.error('File save failed, trying browser download:', fileError);
+                            
+                            // Fallback: try to open in browser for download
+                            const dataUrl = URL.createObjectURL(blob);
+                            await Browser.open({ url: dataUrl });
+                            setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
+                        }
+                    };
+                    
+                    reader.readAsDataURL(blob);
+                    
+                } catch (fetchError) {
+                    console.error('Download failed, trying direct URL:', fetchError);
+                    await Browser.open({ url: pdfUrl });
+                }
+            }
+
         } catch (err) {
-            console.error('View failed', err);
-            setToast({ message: 'Failed to open letter', type: 'error' });
+            console.error('PDF action failed:', err);
+            setToast({ message: 'Failed to process document. Please check your internet connection and try again.', type: 'error' });
         }
     };
 
@@ -50,6 +166,18 @@ const Tasks = () => {
         } catch (err) {
             console.error('Error updating task:', err);
             setToast({ message: 'Failed to update task.', type: 'error' });
+        }
+    };
+
+    const handleDeleteTask = async (id) => {
+        if (!window.confirm('Are you sure you want to delete this task permanently?')) return;
+        try {
+            await api.delete(`/tasks/${id}`);
+            setToast({ message: 'Task deleted successfully!', type: 'success' });
+            fetchData();
+        } catch (err) {
+            console.error('Error deleting task:', err);
+            setToast({ message: 'Failed to delete task.', type: 'error' });
         }
     };
 
@@ -81,9 +209,22 @@ const Tasks = () => {
         <div style={{ padding: '1.5rem', paddingBottom: '5rem' }}>
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-            <header style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem' }}>Admin Tasks</h2>
-                <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Pending requests that need your attention</p>
+            <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.5rem' }}>Admin Tasks</h2>
+                    <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Pending requests that need your attention</p>
+                </div>
+                <button 
+                    onClick={() => navigate('/club-admin/intro-letter-history')}
+                    style={{ 
+                        background: '#f1f5f9', color: '#64748b', border: 'none', 
+                        padding: '0.5rem 1rem', borderRadius: '12px', fontSize: '0.8rem', 
+                        fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        cursor: 'pointer'
+                    }}
+                >
+                    <FaHistory /> History
+                </button>
             </header>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -133,7 +274,20 @@ const Tasks = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    {getStatusBadge(task.status)}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                                        {getStatusBadge(task.status)}
+                                        <button 
+                                            onClick={() => handleDeleteTask(task._id)}
+                                            style={{ 
+                                                background: 'none', border: 'none', color: '#ef4444', 
+                                                fontSize: '0.9rem', cursor: 'pointer', padding: '0.25rem',
+                                                display: 'flex', alignItems: 'center', gap: '0.25rem'
+                                            }}
+                                            title="Delete Task"
+                                        >
+                                            <FaTrash size={12} /> <span style={{ fontSize: '0.75rem' }}>Delete</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '10px', marginBottom: '1.25rem' }}>
@@ -169,7 +323,7 @@ const Tasks = () => {
                                                         <FaQrcode /> Scan
                                                     </button>
                                                     <button
-                                                        onClick={(e) => handlePdfAction(related?._id, e)}
+                                                        onClick={(e) => handlePdfAction(related?._id, 'view', e)}
                                                         style={{
                                                             flex: 1, padding: '0.75rem', borderRadius: '12px', background: '#6366f1', color: 'white',
                                                             border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
@@ -177,6 +331,16 @@ const Tasks = () => {
                                                         }}
                                                     >
                                                         <FaFilePdf /> View
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handlePdfAction(related?._id, 'download', e)}
+                                                        style={{
+                                                            flex: 1, padding: '0.75rem', borderRadius: '12px', background: '#475569', color: 'white',
+                                                            border: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                                            cursor: 'pointer', fontSize: '0.85rem'
+                                                        }}
+                                                    >
+                                                        <FaDownload /> Save
                                                     </button>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>

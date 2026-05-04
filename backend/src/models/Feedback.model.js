@@ -28,8 +28,8 @@ const feedbackSchema = new mongoose.Schema({
     },
     sentiment: {
         type: String,
-        enum: ['positive', 'negative', 'neutral'],
-        default: 'neutral'
+        enum: ['positive', 'negative'],
+        default: 'positive'
     },
     sentimentScore: {
         type: Number,

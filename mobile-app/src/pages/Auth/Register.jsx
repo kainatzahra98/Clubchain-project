@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../../components/Auth/AuthLayout';
 import Button from '../../components/UI/Button';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const Register = () => {
@@ -14,8 +15,8 @@ const Register = () => {
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [step, setStep] = useState('register'); // 'register' or 'otp'
-    const [otp, setOtp] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
     const handleRegister = async (e) => {
@@ -30,12 +31,20 @@ const Register = () => {
         setLoading(true);
 
         try {
-            await api.post('/auth/register', {
+            const { data } = await api.post('/auth/register', {
                 ...formData,
                 role: role === 'admin' ? 'CLUB_ADMIN' : 'CLIENT'
             });
-            // On success, move to OTP step
-            setStep('otp');
+
+            // Auto-login after registration (backend will auto-verify)
+            localStorage.setItem('user', JSON.stringify(data));
+
+            // Redirect based on role
+            if (data.role === 'CLUB_ADMIN') {
+                navigate('/club-admin');
+            } else if (data.role === 'CLIENT') {
+                navigate('/client');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
         } finally {
@@ -70,11 +79,10 @@ const Register = () => {
 
     return (
         <AuthLayout
-            title={step === 'register' ? "Create Account" : "Verify Email"}
-            subtitle={step === 'register' ? "Join the exclusive ClubChain community" : `Enter the code sent to ${formData.email}`}
+            title="Create Account"
+            subtitle="Join the exclusive ClubChain community"
         >
-            {step === 'register' ? (
-                <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Full Name</label>
                         <input
@@ -115,40 +123,90 @@ const Register = () => {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Password</label>
-                        <input
-                            type="password"
-                            placeholder="••••••••"
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            required
-                            style={{
-                                padding: '0.875rem',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(0,0,0,0.1)',
-                                background: '#f8fafc',
-                                outline: 'none',
-                                fontSize: '1rem'
-                            }}
-                        />
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={formData.password}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                required
+                                style={{
+                                    padding: '0.875rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(0,0,0,0.1)',
+                                    background: '#f8fafc',
+                                    outline: 'none',
+                                    fontSize: '1rem',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '1rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '1.1rem',
+                                    color: '#64748b',
+                                    zIndex: 10,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                {showPassword ? <FaEye /> : <FaEyeSlash />}
+                            </button>
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Confirm Password</label>
-                        <input
-                            type="password"
-                            placeholder="••••••••"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            required
-                            style={{
-                                padding: '0.875rem',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(0,0,0,0.1)',
-                                background: '#f8fafc',
-                                outline: 'none',
-                                fontSize: '1rem'
-                            }}
-                        />
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                style={{
+                                    padding: '0.875rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(0,0,0,0.1)',
+                                    background: '#f8fafc',
+                                    outline: 'none',
+                                    fontSize: '1rem',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: 'absolute',
+                                    right: '1rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '1.1rem',
+                                    color: '#64748b',
+                                    zIndex: 10,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center'
+                                }}
+                            >
+                                {showPassword ? <FaEye /> : <FaEyeSlash />}
+                            </button>
+                        </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -202,47 +260,6 @@ const Register = () => {
                         Already have an account? <Link to="/login" style={{ color: '#3a7bd5', fontWeight: 'bold', textDecoration: 'none' }}>Sign In</Link>
                     </div>
                 </form>
-            ) : (
-                <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Verification Code</label>
-                        <input
-                            type="text"
-                            placeholder="123456"
-                            value={otp}
-                            onChange={(e) => setOtp(e.target.value)}
-                            required
-                            maxLength={6}
-                            style={{
-                                padding: '0.875rem',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(0,0,0,0.1)',
-                                background: '#f8fafc',
-                                outline: 'none',
-                                fontSize: '1.5rem',
-                                letterSpacing: '0.5rem',
-                                textAlign: 'center'
-                            }}
-                        />
-                    </div>
-
-                    {error && <div style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{error}</div>}
-
-                    <Button type="submit" variant="primary" fullWidth disabled={loading} style={{ height: '3.5rem', fontSize: '1.1rem', marginTop: '1rem' }}>
-                        {loading ? 'Verifying...' : 'Verify Email'}
-                    </Button>
-
-                    <button
-                        type="button"
-                        onClick={() => setStep('register')}
-                        style={{
-                            background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.9rem', marginTop: '1rem'
-                        }}
-                    >
-                        Back to Registration
-                    </button>
-                </form>
-            )}
         </AuthLayout>
     );
 };

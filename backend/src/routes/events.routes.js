@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     getEvents,
+    getMemberEvents,
     createEvent,
     updateEvent,
     deleteEvent,
@@ -14,6 +15,8 @@ const upload = require('../middlewares/upload.middleware');
 router.get('/temp-seed', seedEvents); // Temporary route for seeding
 
 router.use(protect); // All event routes are protected
+
+router.get('/my-club-events', getMemberEvents);
 
 router.route('/')
     .get(getEvents)

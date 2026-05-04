@@ -12,8 +12,13 @@ const AccountSettings = () => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        phone: ''
+        phone: '',
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
     });
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarPreview, setAvatarPreview] = useState(null);
 
     useEffect(() => {
         fetchProfile();
@@ -24,11 +29,17 @@ const AccountSettings = () => {
             // Using /auth/me which is mounted at /api/auth/me
             const res = await api.get('/auth/me');
             if (res.data) {
-                setFormData({
-                    name: res.data.name || '',
-                    email: res.data.email || '',
-                    phone: res.data.phone || ''
-                });
+                    setFormData({
+                        name: res.data.name || '',
+                        email: res.data.email || '',
+                        phone: res.data.phone || '',
+                        currentPassword: '',
+                        newPassword: '',
+                        confirmPassword: ''
+                    });
+                    if (res.data.avatar) {
+                        setAvatarPreview(`${api.defaults.baseURL.replace('/api', '')}${res.data.avatar}`);
+                    }
             }
         } catch (err) {
             console.error(err);
@@ -43,13 +54,40 @@ const AccountSettings = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
         try {
-            const res = await api.put('/auth/profile', {
-                name: formData.name,
-                phone: formData.phone
+            const data = new FormData();
+            data.append('name', formData.name);
+            data.append('phone', formData.phone);
+            
+            if (avatarFile) {
+                data.append('avatar', avatarFile);
+            }
+
+            if (formData.newPassword) {
+                if (formData.newPassword !== formData.confirmPassword) {
+                    alert('Passwords do not match');
+                    setSaving(false);
+                    return;
+                }
+                data.append('currentPassword', formData.currentPassword);
+                data.append('password', formData.newPassword);
+            }
+
+            const res = await api.put('/auth/profile', data, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
             });
 
             // Update local storage with FULL response (includes new token)
@@ -87,6 +125,24 @@ const AccountSettings = () => {
             ) : (
                 <Card>
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1rem' }}>
+                            <div style={{ position: 'relative', width: '100px', height: '100px', borderRadius: '50%', overflow: 'hidden', border: '3px solid #3a7bd5', marginBottom: '1rem' }}>
+                                {avatarPreview ? (
+                                    <img src={avatarPreview} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                ) : (
+                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f3f4f6', color: '#9ca3af' }}>
+                                        <FaUser size={50} />
+                                    </div>
+                                )}
+                            </div>
+                            <label style={{ 
+                                padding: '0.5rem 1rem', background: '#3a7bd5', color: 'white', 
+                                borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold' 
+                            }}>
+                                Change Photo
+                                <input type="file" onChange={handleFileChange} style={{ display: 'none' }} accept="image/*" />
+                            </label>
+                        </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#4b5563' }}>Full Name</label>
                             <div style={{ position: 'relative' }}>
@@ -138,6 +194,59 @@ const AccountSettings = () => {
                                     fontSize: '1rem'
                                 }}
                             />
+                        </div>
+
+                        <div style={{ marginTop: '1rem', paddingTop: '1.5rem', borderTop: '1px solid #eee' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#111827' }}>Change Password</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: '1.5rem' }}>Leave blank if you don't want to change it.</p>
+                            
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#4b5563' }}>Current Password</label>
+                                <input
+                                    type="password"
+                                    name="currentPassword"
+                                    value={formData.currentPassword}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    style={{
+                                        width: '100%', padding: '0.75rem 1rem',
+                                        borderRadius: '12px', border: '1px solid #e5e7eb',
+                                        fontSize: '1rem'
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#4b5563' }}>New Password</label>
+                                <input
+                                    type="password"
+                                    name="newPassword"
+                                    value={formData.newPassword}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    style={{
+                                        width: '100%', padding: '0.75rem 1rem',
+                                        borderRadius: '12px', border: '1px solid #e5e7eb',
+                                        fontSize: '1rem'
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: '#4b5563' }}>Confirm New Password</label>
+                                <input
+                                    type="password"
+                                    name="confirmPassword"
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    style={{
+                                        width: '100%', padding: '0.75rem 1rem',
+                                        borderRadius: '12px', border: '1px solid #e5e7eb',
+                                        fontSize: '1rem'
+                                    }}
+                                />
+                            </div>
                         </div>
 
                         <Button variant="primary" type="submit" fullWidth disabled={saving} style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>

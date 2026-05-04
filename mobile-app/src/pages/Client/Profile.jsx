@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import api from '../../utils/api';
-import { FaUser, FaQuestionCircle, FaShieldAlt, FaSignOutAlt, FaCommentDots, FaUsers, FaFileAlt } from 'react-icons/fa';
+import { FaUser, FaQuestionCircle, FaShieldAlt, FaSignOutAlt, FaCommentDots, FaUsers, FaFileAlt, FaCreditCard, FaChevronLeft } from 'react-icons/fa';
 
 const Profile = () => {
     const navigate = useNavigate();
@@ -52,6 +52,12 @@ const Profile = () => {
 
     return (
         <div style={{ padding: '1.5rem', paddingBottom: '5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#333' }}>
+                    <FaChevronLeft />
+                </button>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>Profile</h2>
+            </div>
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                 <div style={{
                     width: '100px', height: '100px', borderRadius: '50%',
@@ -85,6 +91,7 @@ const Profile = () => {
                 <Card style={{ padding: '0.5rem' }}>
                     <MenuItem icon={<FaUser />} label="Account Settings" onClick={() => navigate('/client/account-settings')} />
                     <MenuItem icon={<FaShieldAlt />} label="Privacy & Security" onClick={() => navigate('/client/privacy-security')} />
+                    <MenuItem icon={<FaCreditCard />} label="Payment History" onClick={() => navigate('/client/payments')} />
                     <MenuItem icon={<FaUsers />} label="My Memberships" onClick={() => navigate('/client/my-memberships')} />
                     <MenuItem icon={<FaFileAlt />} label="My Requests" onClick={() => navigate('/client/my-letters')} />
                     <MenuItem icon={<FaCommentDots />} label="Send Feedback" onClick={() => navigate('/client/feedback')} />

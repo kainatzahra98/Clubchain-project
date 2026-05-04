@@ -1,17 +1,91 @@
 const Club = require('../models/Club.model');
+const Feedback = require('../models/Feedback.model');
 
 // @desc    Get all clubs
 // @route   GET /api/clubs
 // @access  Public
 const getClubs = async (req, res) => {
     try {
-        const clubs = await Club.find({}); // Fetch all clubs regardless of status for dev/explore
-        console.log(`[API] Returning ${clubs.length} clubs to frontend.`);
-        res.status(200).json(clubs);
+        const clubs = await Club.find({}).lean(); // Fetch all clubs
+        
+        // Aggregate actual feedback sentiment for accurate ranking
+        const feedbackStats = await Feedback.aggregate([
+            {
+                $match: { status: { $ne: 'deleted' } } // Exclude deleted feedback
+            },
+            {
+                $group: {
+                    _id: '$clubId',
+                    positiveCount: {
+                        $sum: { $cond: [{ $eq: ['$sentiment', 'positive'] }, 1, 0] }
+                    },
+                    negativeCount: {
+                        $sum: { $cond: [{ $eq: ['$sentiment', 'negative'] }, 1, 0] }
+                    },
+                    totalCount: { $sum: 1 },
+                    avgFeedbackRating: { $avg: '$rating' },
+                    positivityScore: {
+                        $sum: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ['$sentiment', 'positive'] }, then: 1 },
+                                    { case: { $eq: ['$sentiment', 'negative'] }, then: -1 }
+                                ],
+                                default: 0
+                            }
+                        }
+                    }
+                }
+            }
+        ]);
+
+        const statsMap = feedbackStats.reduce((acc, curr) => {
+            if (curr._id) {
+                acc[curr._id.toString()] = curr;
+            }
+            return acc;
+        }, {});
+
+        console.log(`[DEBUG] Found feedback stats for ${Object.keys(statsMap).length} clubs`);
+
+        const clubsWithRealFeedback = clubs.map(club => {
+            const fStats = statsMap[club._id.toString()] || { 
+                positiveCount: 0, 
+                negativeCount: 0, 
+                totalCount: 0, 
+                positivityScore: 0, 
+                avgFeedbackRating: 0 
+            };
+            
+            // Pre-calculate positivity percentage on the backend
+            const positivityPct = fStats.totalCount > 0 
+                ? Math.round((fStats.positiveCount / fStats.totalCount) * 100) 
+                : 0;
+
+            const avgRating = fStats.avgFeedbackRating ? Math.round(fStats.avgFeedbackRating * 10) / 10 : 0;
+
+            const realFeedback = {
+                ...fStats,
+                positivityPct,
+                avgRating
+            };
+
+            console.log(`[DEBUG] Club: ${club.name}, Positive: ${fStats.positiveCount}, Total: ${fStats.totalCount}, Pct: ${positivityPct}%`);
+            
+            return {
+                ...club,
+                realFeedback
+            };
+        });
+
+        res.status(200).json(clubsWithRealFeedback);
     } catch (error) {
+        console.error("Error fetching clubs:", error);
         res.status(500).json({ message: error.message });
     }
 };
+
+
 
 // @desc    Get single club
 // @route   GET /api/clubs/:id

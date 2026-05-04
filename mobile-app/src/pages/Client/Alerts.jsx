@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
-import { FaBell, FaCalendarCheck, FaInfoCircle, FaExclamationCircle } from 'react-icons/fa';
+import { FaBell, FaCalendarCheck, FaInfoCircle, FaExclamationCircle, FaChevronLeft } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const Alerts = () => {
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
+    const location = useLocation();
     const selectedClubId = localStorage.getItem('selectedClubId');
 
     useEffect(() => {
         fetchNotifications();
-    }, []);
+
+        // Polling for new notifications every 30 seconds
+        const interval = setInterval(fetchNotifications, 30000);
+        return () => clearInterval(interval);
+    }, [location.pathname]);
 
     const fetchNotifications = async () => {
         try {
@@ -25,14 +32,19 @@ const Alerts = () => {
 
     // Filter notifications: Show System/General types OR Club-specific ones matching selection
     const filteredNotifications = notifications.filter(note => {
-        if (!selectedClubId) return true; // Show all if no context
-        // Keep generic types
-        if (['system', 'info'].includes(note.type)) return true;
-        // For 'alert' or 'event', check relatedId if it exists/matches
+        // Always show system, info, alert, and success types regardless of club context
+        // These are critical account/visit status updates
+        if (['system', 'info', 'alert', 'success'].includes(note.type)) return true;
+
+        // For other contextual notifications (like 'event'), filter by selected club if present
+        if (!selectedClubId) return true;
+
         if (note.relatedId) {
-            return note.relatedId === selectedClubId || note.relatedId._id === selectedClubId;
+            const relatedIdStr = typeof note.relatedId === 'object' ? note.relatedId._id : note.relatedId;
+            return relatedIdStr === selectedClubId;
         }
-        return true; // Keep if no relatedId provided? Or hide? Let's keep to be safe.
+
+        return true;
     });
 
     const handleRead = async (id, isRead) => {
@@ -76,7 +88,12 @@ const Alerts = () => {
     return (
         <div style={{ padding: '1.5rem', paddingBottom: '5rem' }}>
             <header style={{ marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Notifications</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#333' }}>
+                        <FaChevronLeft />
+                    </button>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>Notifications</h2>
+                </div>
             </header>
 
             {loading ? (

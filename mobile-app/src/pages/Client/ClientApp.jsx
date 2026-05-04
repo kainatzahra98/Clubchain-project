@@ -12,6 +12,7 @@ import MyLetters from './MyLetters';
 import MyMemberships from './MyMemberships';
 import Events from './Events';
 import AccountSettings from './AccountSettings';
+import Payments from './Payments';
 import PrivacySecurity from './PrivacySecurity';
 import HelpCenter from './HelpCenter';
 
@@ -30,6 +31,7 @@ const ClientApp = () => {
                 <Route path="/my-memberships" element={<MyMemberships />} />
                 <Route path="/events" element={<Events />} />
                 <Route path="/account-settings" element={<AccountSettings />} />
+                <Route path="/payments" element={<Payments />} />
                 <Route path="/privacy-security" element={<PrivacySecurity />} />
                 <Route path="/help-center" element={<HelpCenter />} />
                 <Route path="*" element={<Navigate to="/" replace />} />

@@ -57,14 +57,22 @@ const ClubDetails = () => {
         setIsPaymentOpen(false);
         try {
             console.log('Joining with Plan ID:', selectedPlan._id);
-            await api.post(`/clubs/${id}/join`, { planId: selectedPlan._id });
+            
+            // Create pending payment
+            const paymentRes = await api.post('/payments/create-session', {
+                planId: selectedPlan._id,
+                clubId: id
+            });
+
+            // Complete payment using test endpoint (simulates successful payment)
+            await api.post(`/payments/test-complete/${paymentRes.data.paymentId}`);
+
             alert(`Successfully joined as ${selectedPlan.title} Member!`);
             navigate('/client');
         } catch (err) {
             console.error('Join Error:', err);
             if (err.response) {
                 if (err.response.status === 401) {
-                    // Token invalid/expired
                     alert('Session expired. Please login again.');
                     localStorage.removeItem('user');
                     navigate('/login');

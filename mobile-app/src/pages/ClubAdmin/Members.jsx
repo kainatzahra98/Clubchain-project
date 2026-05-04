@@ -1,14 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
-import { FaSearch, FaEllipsisV, FaUserFriends } from 'react-icons/fa';
+import { FaSearch, FaEllipsisV, FaUserFriends, FaChevronLeft } from 'react-icons/fa';
 import MemberDetails from './MemberDetails';
 import api from '../../utils/api';
 
 const Members = () => {
+    const navigate = useNavigate();
     const [selectedMember, setSelectedMember] = useState(null);
     const [members, setMembers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user || !user.token) {
+            navigate('/login');
+        }
+    }, []);
 
     useEffect(() => {
         fetchMembers();
@@ -43,7 +53,12 @@ const Members = () => {
     return (
         <div style={{ padding: '1.5rem', paddingBottom: '5rem' }}>
             <header style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Club Members</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#333' }}>
+                        <FaChevronLeft />
+                    </button>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>Club Members</h2>
+                </div>
                 <div style={{ background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1', padding: '0.4rem 0.8rem', borderRadius: '20px', fontSize: '0.85rem', fontWeight: '600' }}>
                     {members.length} {members.length === 1 ? 'Member' : 'Members'}
                 </div>

@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import api from '../../utils/api';
-import { FaChevronLeft, FaDownload, FaQrcode, FaClock, FaCheckCircle, FaTimesCircle, FaEye } from 'react-icons/fa';
+import { FaChevronLeft, FaDownload, FaQrcode, FaClock, FaCheckCircle, FaTimesCircle, FaEye, FaTimes, FaChevronRight, FaTrash } from 'react-icons/fa';
 import { QRCodeSVG } from 'qrcode.react';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Main MyLetters Page
+// ─────────────────────────────────────────────────────────────────────────────
 const MyLetters = () => {
     const navigate = useNavigate();
     const [letters, setLetters] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedLetter, setSelectedLetter] = useState(null); // For QR modal
+    const [viewLoadingId, setViewLoadingId] = useState(null);  // tracks which letter is being viewed
+    const [saveLoadingId, setSaveLoadingId] = useState(null);  // tracks which letter is being saved
+    const [pdfModal, setPdfModal] = useState(null); // For PDF viewer modal
 
     useEffect(() => {
         fetchLetters();
@@ -27,27 +37,138 @@ const MyLetters = () => {
         }
     };
 
-    const handlePdfAction = async (id, mode, e) => {
-        e.stopPropagation();
-        try {
-            const response = await api.get(`/intro-letters/${id}/download`, { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+    const handleDeleteLetter = async (id, e) => {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        if (!window.confirm('Are you sure you want to delete this request? This will remove it from your history and cancel any pending approvals.')) {
+            return;
+        }
 
-            if (mode === 'view') {
-                window.open(url, '_blank');
+        try {
+            await api.delete(`/intro-letters/${id}`);
+            setLetters(prev => prev.filter(l => l._id !== id));
+        } catch (err) {
+            console.error('Delete letter failed:', err);
+            alert('Failed to delete request: ' + (err.response?.data?.message || err.message));
+        }
+    };
+
+    // Shared: fetch PDF binary and return base64 data URL + blob
+    const fetchPdfBase64 = async (id) => {
+        const userStr = localStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : null;
+        const token = user?.token || null;
+        if (!token) throw new Error('Session expired. Please login again.');
+
+        const baseURL = api.defaults.baseURL || import.meta.env.VITE_API_URL || 'https://clubchain-backend.vercel.app/api';
+        const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+        const apiUrl = `${cleanBaseURL}/intro-letters/${id}/download?type=view`;
+
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve({ dataUrl: reader.result, blob });
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    };
+
+    // VIEW LETTER — On native, save and share; on web, use modal
+    const handleViewLetter = async (letter, e) => {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        if (viewLoadingId || saveLoadingId) return;
+        setViewLoadingId(letter._id);
+        try {
+            console.log('Fetching PDF for letter:', letter._id);
+            
+            if (Capacitor.isNativePlatform()) {
+                // For native, we save to cache and use Share which allows viewing/opening
+                const { dataUrl } = await fetchPdfBase64(letter._id);
+                const fileName = `view-letter-${letter._id}.pdf`;
+                const base64Only = dataUrl.split(',')[1];
+
+                const saved = await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Only,
+                    directory: Directory.Cache,
+                    recursive: true,
+                });
+                
+                await Share.share({
+                    title: 'View Introduction Letter',
+                    url: saved.uri,
+                    dialogTitle: 'Open PDF',
+                });
             } else {
+                // Web: Use the iframe modal
+                const response = await api.get(`/intro-letters/${letter._id}/download`, {
+                    responseType: 'blob'
+                });
+                
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(response.data);
+                });
+                
+                setPdfModal(dataUrl);
+            }
+        } catch (err) {
+            console.error('View letter failed:', err);
+            alert('Could not open the letter: ' + err.message);
+        } finally {
+            setViewLoadingId(null);
+        }
+    };
+
+    // SAVE PDF — save to Cache directory (most compatible with Android permissions)
+    const handleSavePdf = async (letter, e) => {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        if (viewLoadingId || saveLoadingId) return;
+        setSaveLoadingId(letter._id);
+        try {
+            const { dataUrl } = await fetchPdfBase64(letter._id);
+            const fileName = `intro-letter-${letter._id}.pdf`;
+            const base64Only = dataUrl.split(',')[1];
+
+            if (!Capacitor.isNativePlatform()) {
+                // Web: trigger browser download
                 const link = document.createElement('a');
-                link.href = url;
-                link.setAttribute('download', `IntroLetter-${id}.pdf`);
+                link.href = dataUrl;
+                link.download = fileName;
                 document.body.appendChild(link);
                 link.click();
-                link.parentNode.removeChild(link);
+                document.body.removeChild(link);
+                alert('PDF download started!');
+            } else {
+                // Native: save to Cache directory (safest for EACCES)
+                const saved = await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Only,
+                    directory: Directory.Cache,
+                    recursive: true,
+                });
+                console.log('PDF saved to Cache:', saved.uri);
+                
+                // On native, sharing is the best way to let user "save" it to their device or view it
+                await Share.share({
+                    title: 'Introduction Letter',
+                    text: 'My ClubChain Introduction Letter',
+                    url: saved.uri,
+                    dialogTitle: 'Save or Open PDF',
+                });
             }
-
-            // Note: Cleaner blob management would revoke URL later, but for simple app it's okay for now
         } catch (err) {
-            console.error('Action failed', err);
-            alert('Failed to process request');
+            console.error('Save PDF failed:', err);
+            alert('Could not process the PDF: ' + err.message);
+        } finally {
+            setSaveLoadingId(null);
         }
     };
 
@@ -81,20 +202,33 @@ const MyLetters = () => {
                     {letters.map(letter => {
                         const statusStyle = getStatusParams(letter.status);
                         return (
-                            <Card key={letter._id} onClick={() => letter.status === 'APPROVED' && setSelectedLetter(letter)} style={{ cursor: letter.status === 'APPROVED' ? 'pointer' : 'default' }}>
+                            <Card key={letter._id} style={{ cursor: 'default' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                                     <div>
                                         <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{letter.targetClubId?.name}</h3>
                                         <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0.25rem 0' }}> From: <span style={{ color: '#3b82f6', fontWeight: '500' }}>{letter.homeClubId?.name}</span></p>
                                         <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>Visit Date: {new Date(letter.visitDate).toLocaleDateString()}</p>
                                     </div>
-                                    <span style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.25rem',
-                                        background: statusStyle.bg, color: statusStyle.color,
-                                        padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 'bold'
-                                    }}>
-                                        {statusStyle.icon} {statusStyle.label}
-                                    </span>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                                        <span style={{
+                                            display: 'flex', alignItems: 'center', gap: '0.25rem',
+                                            background: statusStyle.bg, color: statusStyle.color,
+                                            padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 'bold'
+                                        }}>
+                                            {statusStyle.icon} {statusStyle.label}
+                                        </span>
+                                        <button 
+                                            onClick={(e) => handleDeleteLetter(letter._id, e)}
+                                            style={{ 
+                                                background: 'none', border: 'none', color: '#ef4444', 
+                                                fontSize: '0.9rem', cursor: 'pointer', padding: '0.25rem',
+                                                display: 'flex', alignItems: 'center', gap: '0.25rem'
+                                            }}
+                                            title="Delete Request"
+                                        >
+                                            <FaTrash size={12} /> <span style={{ fontSize: '0.75rem' }}>Delete</span>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {letter.status === 'REJECTED' && (
@@ -106,9 +240,9 @@ const MyLetters = () => {
                                 {letter.status === 'ACCEPTED' && (() => {
                                     const today = new Date();
                                     const expiry = new Date(letter.expiryDate);
-                                    const visit = new Date(letter.visitDate);
+                                    const started = letter.visitStartedAt ? new Date(letter.visitStartedAt) : new Date(letter.visitDate);
 
-                                    const totalTime = expiry.getTime() - visit.getTime();
+                                    const totalTime = expiry.getTime() - started.getTime();
                                     const totalDays = Math.max(1, Math.ceil(totalTime / (1000 * 3600 * 24)));
 
                                     const remainingTime = expiry.getTime() - today.getTime();
@@ -125,14 +259,16 @@ const MyLetters = () => {
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem', color: isExpired ? '#6b7280' : '#15803d' }}>
                                                 {isExpired ? <FaClock size={20} /> : <FaCheckCircle size={20} />}
                                                 <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>
-                                                    {isExpired ? 'Visit Completed' : 'Visit Confirmed'}
+                                                    {isExpired ? 'Visit Completed' : (letter.visitStartedAt ? 'Visit Active' : 'Visit Confirmed')}
                                                 </span>
                                             </div>
 
                                             <p style={{ fontSize: '0.9rem', color: isExpired ? '#4b5563' : '#166534', margin: 0, lineHeight: '1.5', marginBottom: '0.75rem' }}>
                                                 {isExpired
                                                     ? "This visit pass has expired. We hope you enjoyed your time!"
-                                                    : <span>Your entry to <strong>{letter.targetClubId?.name}</strong> has been verified.</span>
+                                                    : letter.visitStartedAt
+                                                        ? <span>Your visit at <strong>{letter.targetClubId?.name}</strong> has started! Enjoy your stay.</span>
+                                                        : <span>Your entry to <strong>{letter.targetClubId?.name}</strong> has been verified and is ready to start.</span>
                                                 }
                                             </p>
 
@@ -148,13 +284,28 @@ const MyLetters = () => {
                                             ) : (
                                                 <div style={{ background: 'rgba(255,255,255,0.6)', padding: '0.75rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                                                     <div style={{ textAlign: 'center', flex: 1 }}>
-                                                        <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#15803d' }}>{totalDays}</div>
-                                                        <div style={{ fontSize: '0.7rem', color: '#166534', textTransform: 'uppercase' }}>Day Pass</div>
+                                                        <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#15803d' }}>
+                                                            {letter.visitStartedAt
+                                                                ? Math.max(0, totalDays - remainingDays)
+                                                                : new Date(letter.visitDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.7rem', color: '#166534', textTransform: 'uppercase' }}>
+                                                            {letter.visitStartedAt ? 'Days Passed' : 'Visit Date'}
+                                                        </div>
                                                     </div>
                                                     <div style={{ textAlign: 'center', flex: 1, borderLeft: '1px solid #bbf7d0' }}>
-                                                        <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: remainingDays < 3 ? '#ef4444' : '#15803d' }}>{remainingDays}</div>
-                                                        <div style={{ fontSize: '0.7rem', color: '#166534', textTransform: 'uppercase' }}>Days Left</div>
+                                                        <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: remainingDays < 2 ? '#ef4444' : '#15803d' }}>
+                                                            {letter.visitStartedAt ? remainingDays : totalDays}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.7rem', color: '#166534', textTransform: 'uppercase' }}>
+                                                            {letter.visitStartedAt ? 'Days Left' : 'Duration (Days)'}
+                                                        </div>
                                                     </div>
+                                                </div>
+                                            )}
+                                            {letter.visitStartedAt && !isExpired && (
+                                                <div style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: '#15803d', textAlign: 'center' }}>
+                                                    Started on: {new Date(letter.visitStartedAt).toLocaleString()}
                                                 </div>
                                             )}
                                         </div>
@@ -162,25 +313,33 @@ const MyLetters = () => {
                                 })()}
 
                                 {(letter.status === 'APPROVED' || letter.status === 'ACCEPTED') && (
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-                                        {/* Only show QR Code if NOT yet accepted (i.e. APPROVED) */}
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
                                         {letter.status === 'APPROVED' && (
-                                            <Button variant="secondary" style={{ flex: 1, fontSize: '0.8rem', padding: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.4rem', minWidth: '100px' }}
+                                            <Button
+                                                variant="secondary"
+                                                style={{ flex: 1, fontSize: '0.8rem', padding: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.4rem', minWidth: '100px' }}
                                                 onClick={(e) => { e.stopPropagation(); setSelectedLetter(letter); }}
                                             >
                                                 <FaQrcode /> QR Code
                                             </Button>
                                         )}
 
-                                        <Button variant="outline" style={{ flex: 1, fontSize: '0.8rem', padding: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.4rem', minWidth: '100px' }}
-                                            onClick={(e) => handlePdfAction(letter._id, 'view', e)}
+                                        <Button
+                                            variant="outline"
+                                            style={{ flex: 1, fontSize: '0.8rem', padding: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.4rem', minWidth: '100px', opacity: viewLoadingId === letter._id ? 0.6 : 1 }}
+                                            onClick={(e) => handleViewLetter(letter, e)}
+                                            disabled={viewLoadingId === letter._id || saveLoadingId === letter._id}
                                         >
-                                            <FaEye /> View Letter
+                                            <FaEye /> {viewLoadingId === letter._id ? 'Loading…' : 'View Letter'}
                                         </Button>
-                                        <Button variant="primary" style={{ flex: 1, fontSize: '0.8rem', padding: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.4rem', minWidth: '100px' }}
-                                            onClick={(e) => handlePdfAction(letter._id, 'download', e)}
+
+                                        <Button
+                                            variant="primary"
+                                            style={{ flex: 1, fontSize: '0.8rem', padding: '0.6rem', display: 'flex', justifyContent: 'center', gap: '0.4rem', minWidth: '100px', opacity: saveLoadingId === letter._id ? 0.6 : 1 }}
+                                            onClick={(e) => handleSavePdf(letter, e)}
+                                            disabled={viewLoadingId === letter._id || saveLoadingId === letter._id}
                                         >
-                                            <FaDownload /> Save PDF
+                                            <FaDownload /> {saveLoadingId === letter._id ? 'Saving…' : 'Save PDF'}
                                         </Button>
                                     </div>
                                 )}
@@ -204,6 +363,55 @@ const MyLetters = () => {
                         </div>
                         <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>Show this to the club reception</p>
                         <Button fullWidth onClick={() => setSelectedLetter(null)}>Close</Button>
+                    </div>
+                </div>
+            )}
+
+            {/* PDF Viewer Modal */}
+            {pdfModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(5px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001
+                }} onClick={() => setPdfModal(null)}>
+                    <div style={{ 
+                        background: 'white', 
+                        borderRadius: '16px', 
+                        width: '95%', 
+                        maxWidth: '800px', 
+                        height: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ 
+                            padding: '1rem', 
+                            borderBottom: '1px solid #e5e7eb', 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center' 
+                        }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>Introduction Letter</h3>
+                            <Button 
+                                variant="outline" 
+                                onClick={() => setPdfModal(null)}
+                                style={{ padding: '0.5rem 1rem' }}
+                            >
+                                <FaTimes /> Close
+                            </Button>
+                        </div>
+                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem' }}>
+                            <iframe 
+                                src={pdfModal} 
+                                style={{ 
+                                    width: '100%', 
+                                    height: '100%', 
+                                    border: 'none',
+                                    minHeight: '500px'
+                                }}
+                                title="PDF Viewer"
+                            />
+                        </div>
                     </div>
                 </div>
             )}

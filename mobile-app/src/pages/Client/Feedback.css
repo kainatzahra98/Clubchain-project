@@ -212,3 +212,159 @@
         font-size: 2rem;
     }
 }
+
+/* Custom Club Selector Styling */
+.club-selector-container {
+    position: relative;
+    margin-top: 0.5rem;
+    z-index: 50;
+}
+
+.club-selector-trigger {
+    width: 100%;
+    padding: 1rem;
+    background: #ffffff;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.club-selector-trigger:hover {
+    border-color: #3a7bd5;
+    box-shadow: 0 4px 12px rgba(58, 123, 213, 0.1);
+}
+
+.club-selector-trigger.open {
+    border-color: #3a7bd5;
+    box-shadow: 0 0 0 4px rgba(58, 123, 213, 0.1);
+}
+
+.selected-club-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+}
+
+.selected-club-name {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.selected-club-placeholder {
+    font-size: 1rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.club-options-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+    animation: slideDown 0.2s ease-out;
+    z-index: 100;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.club-option {
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.club-option:last-child {
+    border-bottom: none;
+}
+
+.club-option:hover {
+    background: #f8fafc;
+}
+
+.club-option.active {
+    background: #eff6ff;
+}
+
+.club-option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.club-option-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.club-option-location {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.status-badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.status-badge.member {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.status-badge.visitor {
+    background: #fef9c3;
+    color: #a16207;
+}
+
+.status-badge.past {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.chevron-icon {
+    color: #94a3b8;
+    transition: transform 0.3s ease;
+}
+
+.chevron-icon.open {
+    transform: rotate(180deg);
+    color: #3a7bd5;
+}
+
+/* Background gradient for the page */
+.feedback-page {
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.feedback-card {
+    background: #ffffff;
+    border-radius: 16px;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}

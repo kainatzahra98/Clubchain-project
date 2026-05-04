@@ -17,19 +17,25 @@ const submitFeedback = async (req, res) => {
         // Call AI sentiment service
         const aiResult = await analyzeSentiment(message);
 
-        // AI Assignment Logic: Strict mapping based on Sentiment
+        // Binary Sentiment Logic: No 'neutral' allowed.
+        let sentiment = aiResult.sentiment;
+
+        // Force binary decision if AI says neutral
+        if (sentiment === 'neutral' || !sentiment) {
+            // Threshold-based assignment: 3 stars and above is positive
+            sentiment = rating >= 3 ? 'positive' : 'negative';
+        }
+
         let assignedType = type;
-        if (aiResult.sentiment === 'positive') {
+        if (sentiment === 'positive') {
             assignedType = 'praise';
-        } else if (aiResult.sentiment === 'negative') {
-            // Negative sentiment on 'general' feedback is automatically a 'complaint'
+        } else {
+            // All non-positive feedback (negative) defaults to complaint if general
+            sentiment = 'negative'; // Ensure it's strictly 'negative'
             if (type === 'general') {
                 assignedType = 'complaint';
             }
-            // For 'bug' or 'feature' with negative sentiment, we keep the user's category 
-            // but it will be flagged for assignment in the dashboard.
         }
-        // If Sentiment is 'neutral' (fallback), we respect the user's manual categorization
 
         const feedback = await Feedback.create({
             userId: req.user.id,
@@ -37,10 +43,23 @@ const submitFeedback = async (req, res) => {
             rating,
             message,
             type: assignedType,
-            sentiment: aiResult.sentiment,
+            sentiment: sentiment,
             sentimentScore: aiResult.confidence,
             status: 'pending'
         });
+
+        // Update club rating stats
+        try {
+            const Club = require('../models/Club.model');
+            const allFeedback = await Feedback.find({ clubId, status: { $ne: 'deleted' } });
+            const avgRating = allFeedback.reduce((sum, f) => sum + f.rating, 0) / allFeedback.length;
+            
+            await Club.findByIdAndUpdate(clubId, {
+                'stats.rating': Math.round(avgRating * 10) / 10
+            });
+        } catch (updateError) {
+            console.error('[WARN] Failed to update club rating:', updateError.message);
+        }
 
         res.status(201).json(feedback);
     } catch (error) {
@@ -190,6 +209,75 @@ const restoreFeedback = async (req, res) => {
     }
 };
 
+// @desc    Get club rankings by positive feedback
+// @route   GET /api/feedback/rankings
+// @access  Private/CLIENT
+const getClubRankings = async (req, res) => {
+    try {
+        const rankings = await Feedback.aggregate([
+            // Only count non-deleted feedback that belongs to a club
+            { $match: { status: { $ne: 'deleted' }, clubId: { $exists: true, $ne: null } } },
+            {
+                $group: {
+                    _id: '$clubId',
+                    totalFeedback: { $sum: 1 },
+                    positiveCount: { $sum: { $cond: [{ $eq: ['$sentiment', 'positive'] }, 1, 0] } },
+                    negativeCount: { $sum: { $cond: [{ $eq: ['$sentiment', 'negative'] }, 1, 0] } },
+                    avgRating: { $avg: '$rating' },
+                    // Positivity score: positive=1, negative=-1
+                    positivityScore: {
+                        $sum: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ['$sentiment', 'positive'] }, then: 1 },
+                                    { case: { $eq: ['$sentiment', 'negative'] }, then: -1 }
+                                ],
+                                default: 0
+                            }
+                        }
+                    }
+                }
+            },
+            { $sort: { positivityScore: -1, avgRating: -1 } },
+            {
+                $lookup: {
+                    from: 'clubs',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'club'
+                }
+            },
+            { $unwind: '$club' },
+            {
+                $project: {
+                    _id: 0,
+                    clubId: '$_id',
+                    clubName: '$club.name',
+                    clubLocation: '$club.location',
+                    clubImage: '$club.image',
+                    totalFeedback: 1,
+                    positiveCount: 1,
+                    negativeCount: 1,
+                    avgRating: { $round: ['$avgRating', 1] },
+                    positivityScore: 1,
+                    positivityPct: {
+                        $cond: [
+                            { $gt: ['$totalFeedback', 0] },
+                            { $round: [{ $multiply: [{ $divide: ['$positiveCount', '$totalFeedback'] }, 100] }, 0] },
+                            0
+                        ]
+                    }
+                }
+            },
+            { $sort: { positivityPct: -1, avgRating: -1, positivityScore: -1 } }
+        ]);
+
+        res.json(rankings);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Permanently delete feedback
 // @route   DELETE /api/feedback/:id/permanent
 // @access  Private/SYSTEM_ADMIN
@@ -212,5 +300,6 @@ module.exports = {
     deleteFeedback,
     notifyAssignee,
     restoreFeedback,
-    permanentDeleteFeedback
+    permanentDeleteFeedback,
+    getClubRankings
 };

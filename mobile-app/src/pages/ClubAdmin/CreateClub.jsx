@@ -40,7 +40,7 @@ const CreateClub = () => {
         try {
             const response = await api.post('/clubs', {
                 ...formData,
-                status: 'inactive' // Clubs start as inactive for admin approval
+                status: 'pending' // Clubs start as pending for admin approval
             });
             const newClub = response.data;
 
@@ -52,8 +52,7 @@ const CreateClub = () => {
                 localStorage.setItem('user', JSON.stringify(user));
             }
 
-            alert('Club Profile Submitted! It is now pending activation by a System Admin.');
-            navigate('/club-admin'); // Refresh dashboard
+            navigate('/club-admin/club-status'); // Go to status tracking page
         } catch (err) {
             console.error(err);
             setError(err.response?.data?.message || 'Failed to submit club profile');

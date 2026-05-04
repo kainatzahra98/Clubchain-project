@@ -13,37 +13,78 @@ const Home = () => {
     const [selectedClubId, setSelectedClubId] = useState(localStorage.getItem('selectedClubId') || null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
+    // Redirect if not logged in
+    useEffect(() => {
+        if (!user || !user.token) {
+            navigate('/login');
+        }
+    }, []);
+
     useEffect(() => {
         const fetchStats = async () => {
             try {
+                console.log("Fetching home dashboard stats...");
                 // Fetch basic dashboard stats (includes list of memberships and events)
                 const statsResponse = await api.get('/dashboard/stats');
+                console.log("Dashboard stats fetched successfully");
 
                 // Consolidate data (backend now handles event filtering too)
                 const combinedStats = statsResponse.data;
-
                 setStats(combinedStats);
 
                 // Set initial selection if needed
-                if (combinedStats.myMemberships && combinedStats.myMemberships.length > 0) {
-                    const activeClubs = combinedStats.myMemberships.filter(m => m.status === 'active');
-                    // If no currently selected club or selection is invalid, default to first active
+                if ((combinedStats.myMemberships && combinedStats.myMemberships.length > 0) || (combinedStats.visitingClubs && combinedStats.visitingClubs.length > 0)) {
+                    const activeClubs = [...(combinedStats.myMemberships || []), ...(combinedStats.visitingClubs || [])];
+                    
+                    // If no currently selected club or selection is invalid, default to first available
                     const currentSelectionValid = activeClubs.some(c => c.clubId === selectedClubId);
 
                     if (!selectedClubId || !currentSelectionValid) {
                         if (activeClubs.length > 0) {
                             handleClubChange(activeClubs[0].clubId);
-                        } else if (combinedStats.myMemberships.length > 0) {
-                            handleClubChange(combinedStats.myMemberships[0].clubId);
                         }
                     }
                 }
             } catch (err) {
                 console.error('Error fetching home stats:', err);
-                setToast({
-                    message: err.response?.data?.message || 'Failed to load dashboard data',
-                    type: 'error'
-                });
+                console.log("Trying fallback approach...");
+                
+                // Fallback: try to get events separately and create minimal stats
+                try {
+                    let eventsData = [];
+                    try {
+                        const eventRes = await api.get('/events/my-club-events');
+                        eventsData = eventRes.data || [];
+                        console.log("Events fetched via fallback:", eventsData.length);
+                    } catch (eventErr) {
+                        console.log("Events fallback failed, trying general events...");
+                        try {
+                            const altEventRes = await api.get('/events');
+                            eventsData = altEventRes.data || [];
+                            console.log("General events fetched:", eventsData.length);
+                        } catch (altErr) {
+                            console.log("All event fetch attempts failed");
+                            eventsData = [];
+                        }
+                    }
+                    
+                    // Create minimal stats structure
+                    const fallbackStats = {
+                        myMemberships: [],
+                        visitingClubs: [],
+                        upcomingEvents: eventsData
+                    };
+                    
+                    setStats(fallbackStats);
+                    console.log("Fallback stats set with events:", eventsData.length);
+                    
+                } catch (fallbackErr) {
+                    console.error('Fallback also failed:', fallbackErr);
+                    setToast({
+                        message: 'Failed to load dashboard data',
+                        type: 'error'
+                    });
+                }
             }
         };
         fetchStats();
@@ -58,15 +99,43 @@ const Home = () => {
         setToast({ message: `Registered interest for ${eventName}`, type: 'success' });
     };
 
-    // Filter content based on selection
-    const displayedMemberships = stats?.myMemberships?.filter(m => m.clubId === selectedClubId) || [];
-    const displayedEvents = stats?.upcomingEvents?.filter(e => e.clubId?._id === selectedClubId || e.clubId === selectedClubId) || [];
+    // Filter content based on selection (check both memberships and visiting clubs)
+    // Only show ONE membership per club on home page as requested
+    const allMembershipsForClub = [
+        ...(stats?.myMemberships?.filter(m => m.clubId === selectedClubId) || []),
+        ...(stats?.visitingClubs?.filter(c => c.clubId === selectedClubId) || [])
+    ];
+    
+    const hasMultiplePlans = allMembershipsForClub.length > 1;
+    const displayedMemberships = allMembershipsForClub.slice(0, 1);
+
+    // NEW: Factor in the selected club for upcoming events as well
+    // If a club is selected, show only its events. Otherwise show all joined.
+    const allEvents = stats?.upcomingEvents || [];
+    const filteredEvents = selectedClubId
+        ? allEvents.filter(e => {
+            const eventClubId = e.clubId?._id || e.clubId;
+            return eventClubId?.toString() === selectedClubId?.toString();
+        })
+        : allEvents;
+
+    // Limit to top 2 as per previous request
+    const displayedEvents = filteredEvents.slice(0, 2);
+
+    // Available clubs list for dropdown (Memberships + Visiting)
+    const rawClubs = [...(stats?.myMemberships || []), ...(stats?.visitingClubs || [])];
+    
+    // Filter out duplicates by clubId to ensure each club is only shown once in the switcher
+    const availableClubs = rawClubs.reduce((acc, current) => {
+        const isDuplicate = acc.some(item => item.clubId === current.clubId);
+        if (!isDuplicate) {
+            return [...acc, current];
+        }
+        return acc;
+    }, []);
 
     // Get currently selected club name for display
-    const selectedClubName = stats?.myMemberships?.find(m => m.clubId === selectedClubId)?.clubName || 'My Club';
-
-    // Available clubs list for dropdown
-    const availableClubs = stats?.myMemberships || [];
+    const selectedClubName = availableClubs.find(c => c.clubId === selectedClubId)?.clubName || 'My Club';
 
     return (
         <div style={{ padding: '1.5rem', paddingBottom: '5rem' }}>
@@ -124,8 +193,10 @@ const Home = () => {
                                     <span style={{ fontSize: '0.9rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px' }}>{membership.clubName}</span>
                                     <span style={{
                                         padding: '0.25rem 0.75rem',
-                                        background: membership.status === 'active' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(100, 116, 139, 0.2)',
-                                        color: membership.status === 'active' ? '#059669' : '#64748b',
+                                        background: membership.status === 'active' ? 'rgba(16, 185, 129, 0.2)' : 
+                                                    membership.status === 'visitor' ? 'rgba(58, 123, 213, 0.2)' : 'rgba(100, 116, 139, 0.2)',
+                                        color: membership.status === 'active' ? '#059669' : 
+                                               membership.status === 'visitor' ? '#3a7bd5' : '#64748b',
                                         borderRadius: '50px',
                                         fontSize: '0.8rem',
                                         fontWeight: 'bold'
@@ -135,7 +206,7 @@ const Home = () => {
                                 </div>
 
                                 <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem', color: '#1e293b', fontWeight: '800' }}>
-                                    {membership.planName}
+                                    {membership.planName || 'Club Visitor'}
                                 </h2>
                                 <p style={{ color: '#64748b', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     {membership.clubLocation ? <><FaMapMarkerAlt size={12} /> {membership.clubLocation}</> : 'No Location Specified'}
@@ -182,21 +253,44 @@ const Home = () => {
                                     <Button variant="secondary" fullWidth style={{ borderRadius: '14px', height: '2.8rem' }} onClick={() => navigate(`/client/clubs/${membership.clubId}`)}>Details</Button>
                                 </div>
                                 {(membership.status === 'expired' || membership.status === 'active' || membership.status === 'inactive' || membership.status === 'cancelled') && (
-                                    <div style={{ marginTop: '0.75rem', textAlign: 'center' }}>
-                                        <button
-                                            onClick={() => navigate(`/client/clubs/${membership.clubId}`)}
-                                            style={{
-                                                padding: '0.5rem', background: 'none', border: 'none',
-                                                color: '#3a7bd5', fontWeight: '700', cursor: 'pointer',
-                                                fontSize: '0.85rem', opacity: 0.8
+                                    <div style={{ marginTop: '0.75rem', textAlign: 'center' }}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            navigate('/client/my-memberships');
+                                        }}
+                                    >
+                                        <span
+                                            style={{ 
+                                                padding: '0.5rem 1rem',
+                                                fontSize: '0.85rem',
+                                                color: '#3a7bd5',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                border: '1px solid #3a7bd5',
+                                                borderRadius: '8px',
+                                                display: 'inline-block'
                                             }}
                                         >
                                             {['expired', 'inactive', 'cancelled'].includes(membership.status) ? 'Renew Plan' : 'Manage Subscription'}
-                                        </button>
+                                        </span>
                                     </div>
                                 )}
                             </div>
                         ))}
+                        
+                        {hasMultiplePlans && (
+                            <div 
+                                onClick={() => navigate('/client/my-memberships')}
+                                style={{ 
+                                    textAlign: 'center', padding: '0.75rem', 
+                                    background: '#f8fafc', borderRadius: '14px', 
+                                    border: '1px dashed #cbd5e1', color: '#3a7bd5',
+                                    fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer'
+                                }}
+                            >
+                                You have {allMembershipsForClub.length - 1} more active plan(s). <span style={{ textDecoration: 'underline' }}>View All</span>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div style={{
@@ -208,7 +302,7 @@ const Home = () => {
                     }}>
                         <div style={{ fontSize: '2rem', color: '#e11d48', marginBottom: '0.5rem' }}>⚠️</div>
                         <h3 style={{ fontSize: '1.2rem', color: '#be123c', marginBottom: '0.5rem' }}>
-                            {selectedClubId ? 'Membership Inactive' : 'No Clubs Found'}
+                            {selectedClubId ? 'Membership Inactive' : 'No Memberships Found'}
                         </h3>
                         <p style={{ color: '#881337', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
                             {selectedClubId
@@ -217,9 +311,9 @@ const Home = () => {
                         </p>
                         <Button
                             variant="primary"
-                            onClick={() => selectedClubId ? navigate(`/client/clubs/${selectedClubId}`) : navigate('/client/explore')}
+                            onClick={() => navigate('/client/explore')}
                         >
-                            {selectedClubId ? 'View Membership Plans' : 'Explore Clubs'}
+                            View Membership Plans
                         </Button>
                     </div>
                 )}
@@ -227,11 +321,11 @@ const Home = () => {
 
             <section>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3 style={{ fontSize: '1.1rem' }}>{selectedClubId ? 'Club Events' : 'My Club Events'}</h3>
+                    <h3 style={{ fontSize: '1.1rem' }}>Upcoming Events</h3>
                     {displayedEvents.length > 0 && (
                         <span
                             style={{ color: '#3a7bd5', fontSize: '0.9rem', cursor: 'pointer' }}
-                            onClick={() => navigate('/client/events')}
+                            onClick={() => navigate('/client/events', { state: { showAll: true } })}
                         >
                             View All
                         </span>
@@ -240,36 +334,43 @@ const Home = () => {
 
                 {displayedEvents.length > 0 ? (
                     displayedEvents.map((event) => (
-                        <Card key={event._id} onClick={() => handleEventClick(event.title)} style={{ marginBottom: '1rem' }}>
+                        <Card key={event._id} onClick={() => handleEventClick(event.title)} style={{ marginBottom: '1rem', border: '1px solid #f1f5f9' }}>
                             <div style={{ display: 'flex', gap: '1rem' }}>
                                 <div style={{
-                                    background: '#f1f5f9', borderRadius: '12px', padding: '0.75rem',
+                                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                                    borderRadius: '12px', padding: '0.75rem',
                                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                                    minWidth: '60px'
+                                    minWidth: '60px', border: '1px solid #e2e8f0'
                                 }}>
-                                    <span style={{ fontSize: '0.8rem', color: '#64748b', textTransform: 'uppercase' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 'bold' }}>
                                         {new Date(event.date).toLocaleString('default', { month: 'short' })}
                                     </span>
-                                    <span style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>
+                                    <span style={{ fontSize: '1.25rem', fontWeight: '800', color: '#1e293b' }}>
                                         {new Date(event.date).getDate()}
                                     </span>
                                 </div>
-                                <div>
-                                    <h4 style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>{event.title}</h4>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.85rem' }}>
-                                        <FaMapMarkerAlt /> {event.location}
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '0.7rem', color: '#3a7bd5', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>
+                                        {event.clubId?.name || 'Club Event'}
                                     </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748b', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                                        <FaCalendarAlt /> {event.time}
+                                    <h4 style={{ fontSize: '1.05rem', marginBottom: '0.4rem', color: '#1e293b', fontWeight: '700' }}>{event.title}</h4>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b', fontSize: '0.8rem' }}>
+                                            <FaMapMarkerAlt size={12} color="#94a3b8" /> {event.location}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#64748b', fontSize: '0.8rem' }}>
+                                            <FaCalendarAlt size={12} color="#94a3b8" /> {event.time}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </Card>
                     ))
                 ) : (
-                    <div style={{ textAlign: 'center', color: '#64748b', padding: '2rem', background: '#f8fafc', borderRadius: '16px', border: '1px dashed #cbd5e1' }}>
-                        <p style={{ marginBottom: '1rem' }}>No upcoming events for {selectedClubName}.</p>
-                        <Button variant="outline" size="small" onClick={() => navigate('/client/explore')}>Find More Clubs</Button>
+                    <div style={{ textAlign: 'center', color: '#64748b', padding: '2.5rem 1.5rem', background: '#f8fafc', borderRadius: '24px', border: '1px dashed #cbd5e1' }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📅</div>
+                        <p style={{ marginBottom: '1rem', fontWeight: '600' }}>No upcoming events from your clubs.</p>
+                        <Button variant="outline" size="small" onClick={() => navigate('/client/explore')}>Discover More Clubs</Button>
                     </div>
                 )}
             </section>
