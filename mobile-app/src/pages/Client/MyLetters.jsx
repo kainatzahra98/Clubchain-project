@@ -107,8 +107,11 @@ const MyLetters = () => {
             }
             
             // In-app view for both Web and Mobile
-            const { dataUrl } = await fetchPdfBase64(letter._id);
-            setPdfModal(dataUrl);
+            const response = await api.get(`/intro-letters/${letter._id}/download`, {
+                responseType: 'blob'
+            });
+            const blobUrl = URL.createObjectURL(response.data);
+            setPdfModal(blobUrl);
         } catch (err) {
             console.error('View letter failed:', err);
             alert('Could not open the letter: ' + err.message);
@@ -411,7 +414,10 @@ const MyLetters = () => {
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>Introduction Letter</h3>
                             <Button 
                                 variant="outline" 
-                                onClick={() => setPdfModal(null)}
+                                onClick={() => {
+                                    if (pdfModal.startsWith('blob:')) URL.revokeObjectURL(pdfModal);
+                                    setPdfModal(null);
+                                }}
                                 style={{ padding: '0.5rem 1rem' }}
                             >
                                 <FaTimes /> Close
@@ -425,17 +431,22 @@ const MyLetters = () => {
                                 </Button>
                             </div>
                         )}
-                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem', background: '#f3f4f6' }}>
-                            <iframe 
-                                src={pdfModal} 
+                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem', background: '#f3f4f6', display: 'flex', justifyContent: 'center' }}>
+                            <object 
+                                data={pdfModal} 
+                                type="application/pdf"
                                 style={{ 
                                     width: '100%', 
                                     height: '100%', 
                                     border: 'none',
                                     minHeight: '500px'
                                 }}
-                                title="PDF Viewer"
-                            />
+                            >
+                                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                                    <p>Your device cannot display this PDF directly.</p>
+                                    <Button onClick={handleExternalView}>Open in System Viewer</Button>
+                                </div>
+                            </object>
                         </div>
                     </div>
                 </div>
