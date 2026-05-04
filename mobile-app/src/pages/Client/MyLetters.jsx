@@ -29,7 +29,13 @@ const MyLetters = () => {
     const fetchLetters = async () => {
         try {
             const res = await api.get('/intro-letters/my');
-            setLetters(res.data);
+            // Sort: PENDING first, then by newest date
+            const sortedLetters = (res.data || []).sort((a, b) => {
+                if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+                if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            });
+            setLetters(sortedLetters);
         } catch (err) {
             console.error(err);
         } finally {
