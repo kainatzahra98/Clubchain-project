@@ -5,7 +5,7 @@ const getPlans = async (req, res) => {
         let query = {};
         
         // Regular clients only see active plans
-        if (req.user.role === 'CLIENT') {
+        if (req.user && req.user.role === 'CLIENT') {
             query.isActive = { $ne: false };
         }
 

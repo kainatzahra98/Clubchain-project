@@ -36,16 +36,14 @@ const MembershipPlans = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [plansRes, membershipsRes, clubsRes] = await Promise.all([
-                api.get('/membership-plans'),
-                api.get('/members/all-memberships'),
-                api.get('/clubs')
-            ]);
-            setPlans(plansRes.data);
-            setMemberships(membershipsRes.data);
-            setClubs(clubsRes.data);
+            // Fetch individually to prevent one failure from blocking others
+            const fetchPlans = api.get('/membership-plans').then(r => setPlans(r.data)).catch(e => console.error('Plans error:', e));
+            const fetchMemberships = api.get('/members/all-memberships').then(r => setMemberships(r.data)).catch(e => console.error('Memberships error:', e));
+            const fetchClubs = api.get('/clubs').then(r => setClubs(r.data)).catch(e => console.error('Clubs error:', e));
+            
+            await Promise.allSettled([fetchPlans, fetchMemberships, fetchClubs]);
         } catch (err) {
-            console.error('Error fetching data:', err);
+            console.error('General fetch error:', err);
         } finally {
             setLoading(false);
         }

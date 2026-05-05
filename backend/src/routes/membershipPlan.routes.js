@@ -4,7 +4,7 @@ const { getPlans, createPlan, updatePlan, deletePlan } = require('../controllers
 const { protect } = require('../middlewares/auth.middleware');
 const { authorize } = require('../middlewares/role.middleware');
 
-router.get('/', getPlans);
+router.get('/', protect, getPlans);
 router.post('/', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), createPlan);
 router.put('/:id', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), updatePlan);
 router.delete('/:id', protect, authorize('SYSTEM_ADMIN', 'CLUB_ADMIN'), deletePlan);
