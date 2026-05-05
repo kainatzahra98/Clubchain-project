@@ -2,7 +2,13 @@ const MembershipPlan = require('../models/MembershipPlan.model');
 
 const getPlans = async (req, res) => {
     try {
-        const query = { isActive: true };
+        let query = {};
+        
+        // Regular clients only see active plans
+        if (req.user.role === 'CLIENT') {
+            query.isActive = { $ne: false };
+        }
+
         if (req.query.clubId) {
             if (req.query.strict === 'true') {
                 query.clubId = req.query.clubId;
