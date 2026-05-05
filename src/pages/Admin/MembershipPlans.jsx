@@ -179,6 +179,14 @@ const MembershipPlans = () => {
                             )
                         ) : (
                             <div className="memberships-table-container glass">
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '1rem' }}>
+                                    <button 
+                                        onClick={fetchData}
+                                        style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}
+                                    >
+                                        ↻ Refresh Data
+                                    </button>
+                                </div>
                                 <table className="management-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                                     <thead>
                                         <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
