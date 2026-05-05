@@ -37,9 +37,19 @@ const MembershipPlans = () => {
         setLoading(true);
         try {
             // Fetch individually to prevent one failure from blocking others
-            const fetchPlans = api.get('/membership-plans').then(r => setPlans(r.data)).catch(e => console.error('Plans error:', e));
-            const fetchMemberships = api.get('/members/all-memberships').then(r => setMemberships(r.data)).catch(e => console.error('Memberships error:', e));
-            const fetchClubs = api.get('/clubs').then(r => setClubs(r.data)).catch(e => console.error('Clubs error:', e));
+            const fetchPlans = api.get('/membership-plans').then(r => {
+                console.log('Fetched Plans:', r.data);
+                setPlans(r.data);
+            }).catch(e => console.error('Plans error:', e));
+
+            const fetchMemberships = api.get('/members/all-memberships').then(r => {
+                console.log('Fetched Memberships:', r.data);
+                setMemberships(r.data);
+            }).catch(e => console.error('Memberships error:', e));
+
+            const fetchClubs = api.get('/clubs').then(r => {
+                setClubs(r.data);
+            }).catch(e => console.error('Clubs error:', e));
             
             await Promise.allSettled([fetchPlans, fetchMemberships, fetchClubs]);
         } catch (err) {
