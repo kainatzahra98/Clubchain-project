@@ -276,7 +276,7 @@ const getAllMembers = async (req, res) => {
             const query = requestedStatus === 'ACTIVE'
                 ? { status: { $ne: 'DELETED' } }
                 : { status: requestedStatus };
-            const users = await User.find(query).select('-password').sort({ createdAt: -1 });
+            const users = await User.find(query).populate('clubId', 'name').select('-password').sort({ createdAt: -1 });
             return res.status(200).json(users);
         } else if (req.user.role === 'CLUB_ADMIN') {
             // Club Admin: Fetch memberships in their club
@@ -599,6 +599,25 @@ const updateMemberNotes = async (req, res) => {
     }
 };
 
+const getAllMemberships = async (req, res) => {
+    try {
+        let query = {};
+        if (req.user.role === 'CLUB_ADMIN') {
+            query = { clubId: req.user.clubId };
+        }
+
+        const memberships = await Membership.find(query)
+            .populate('userId', 'name email image')
+            .populate('clubId', 'name')
+            .populate('planId', 'title')
+            .sort({ joinedAt: -1 });
+
+        res.status(200).json(memberships);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     joinClub,
     getTasks,
@@ -610,5 +629,6 @@ module.exports = {
     getMemberEvents,
     updateMemberNotes,
     getMemberDetails,
-    deleteTask
+    deleteTask,
+    getAllMemberships
 };

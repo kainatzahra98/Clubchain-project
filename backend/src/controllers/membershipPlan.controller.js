@@ -14,7 +14,7 @@ const getPlans = async (req, res) => {
                 ];
             }
         }
-        const plans = await MembershipPlan.find(query);
+        const plans = await MembershipPlan.find(query).populate('clubId', 'name');
         res.status(200).json(plans);
     } catch (error) {
         res.status(500).json({ message: error.message });

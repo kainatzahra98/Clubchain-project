@@ -2,7 +2,7 @@ import React from 'react';
 import Sidebar from '../../components/Sidebar/Sidebar';
 import Header from '../../components/Header/Header';
 import './IntroLetters.css';
-import { FaFileAlt, FaSearch, FaFilter, FaEye } from 'react-icons/fa';
+import { FaFileAlt, FaSearch, FaFilter, FaEye, FaCheckCircle } from 'react-icons/fa';
 
 import api from '../../utils/api';
 
@@ -12,6 +12,7 @@ const IntroLetters = () => {
     const [loading, setLoading] = React.useState(true);
     const [activeTab, setActiveTab] = React.useState('outbound'); // outbound or inbound
     const [stats, setStats] = React.useState({ total: 0, pending: 0, approved: 0, accepted: 0 });
+    const [selectedLetter, setSelectedLetter] = React.useState(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const isSystemAdmin = user.role === 'SYSTEM_ADMIN';
 
@@ -20,17 +21,20 @@ const IntroLetters = () => {
         try {
             if (isSystemAdmin) {
                 const res = await api.get('/intro-letters/admin/all');
-                setLetters(res.data);
-                updateStats(res.data);
+                const data = Array.isArray(res.data) ? res.data : [];
+                setLetters(data);
+                updateStats(data);
             } else {
                 // Club Admin fetches both
                 const [outRes, inRes] = await Promise.all([
                     api.get('/intro-letters/pending'),
                     api.get('/intro-letters/incoming')
                 ]);
-                setLetters(outRes.data);
-                setIncomingLetters(inRes.data);
-                updateStats([...outRes.data, ...inRes.data]);
+                const outData = Array.isArray(outRes.data) ? outRes.data : [];
+                const inData = Array.isArray(inRes.data) ? inRes.data : [];
+                setLetters(outData);
+                setIncomingLetters(inData);
+                updateStats([...outData, ...inData]);
             }
         } catch (err) {
             console.error('Error fetching letters:', err);
@@ -40,11 +44,12 @@ const IntroLetters = () => {
     };
 
     const updateStats = (data) => {
+        if (!Array.isArray(data)) return;
         setStats({
             total: data.length,
-            pending: data.filter(l => l.status === 'PENDING').length,
-            approved: data.filter(l => l.status === 'APPROVED').length,
-            accepted: data.filter(l => l.status === 'ACCEPTED').length
+            pending: data.filter(l => l && l.status === 'PENDING').length,
+            approved: data.filter(l => l && l.status === 'APPROVED').length,
+            accepted: data.filter(l => l && l.status === 'ACCEPTED').length
         });
     }
 

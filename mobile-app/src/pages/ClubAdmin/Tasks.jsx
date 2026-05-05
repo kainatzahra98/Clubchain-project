@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Browser } from '@capacitor/browser';
-import { Filesystem } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import { useNavigate } from 'react-router-dom';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
 import Toast from '../../components/UI/Toast';
-import { FaCheck, FaTimes, FaUser, FaClock, FaFileAlt, FaQrcode, FaFilePdf, FaDownload, FaHistory, FaTrash } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaUser, FaClock, FaFileAlt, FaQrcode, FaFilePdf, FaDownload, FaHistory, FaTrash, FaEye, FaTimes as FaClose } from 'react-icons/fa';
 import api from '../../utils/api';
 import MemberDetails from './MemberDetails';
 
 const Tasks = () => {
     const navigate = useNavigate();
     const [tasks, setTasks] = useState([]);
+    const [pdfModal, setPdfModal] = useState(null); // for PDF viewer modal
+    const [toast, setToast] = useState(null);
     const [selectedMember, setSelectedMember] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [toast, setToast] = useState(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
 
     // Redirect if not logged in
@@ -58,15 +60,14 @@ const Tasks = () => {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
 
-                    // Get the blob and create a data URL
-                    const blob = await response.blob();
-                    const dataUrl = URL.createObjectURL(blob);
-                    
-                    // Open the blob URL in the browser
-                    await Browser.open({ url: dataUrl });
-                    
-                    // Clean up the blob URL after a delay
-                    setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
+                // Get the blob and convert to data URL (Base64)
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const dataUrl = reader.result;
+                    setPdfModal(dataUrl);
+                };
+                reader.readAsDataURL(blob);
                     
                 } catch (fetchError) {
                     console.error('Fetch failed, trying direct URL:', fetchError);
@@ -99,12 +100,11 @@ const Tasks = () => {
                             const fileName = `intro-letter-${id}.pdf`;
                             const result = await Filesystem.writeFile({
                                 path: fileName,
-                                data: base64data.split(',')[1], // Remove data:application/pdf;base64, prefix
-                                directory: 'Downloads'
+                                data: base64data.split(',')[1],
+                                directory: Directory.Cache,
+                                recursive: true
                             });
-                            
-                            console.log('File saved successfully:', result);
-                            setToast({ message: 'PDF saved to your device downloads!', type: 'success' });
+                            setToast({ message: 'PDF processed successfully!', type: 'success' });
                             
                             // Try to share the file as well
                             try {
@@ -421,6 +421,67 @@ const Tasks = () => {
                 )}
             </div>
 
+            {/* PDF Viewer Modal */}
+            {pdfModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(5px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001
+                }} onClick={() => setPdfModal(null)}>
+                    <div style={{
+                        background: 'white',
+                        borderRadius: '16px',
+                        width: '95%',
+                        maxWidth: '800px',
+                        height: '90vh',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{
+                            padding: '1rem',
+                            borderBottom: '1px solid #e5e7eb',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>Introduction Letter</h3>
+                            <button onClick={() => setPdfModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.2rem' }}>✖</button>
+                        </div>
+                        {Capacitor.isNativePlatform() && (
+                            <div style={{ padding: '0.5rem 1rem', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>
+                                <p style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem' }}>If PDF doesn't appear below:</p>
+                                <Button size="small" variant="outline" onClick={async () => {
+                                    if (!pdfModal) return;
+                                    try {
+                                        // Open with system viewer using Filesystem path
+                                        const base64 = pdfModal.split(',')[1];
+                                        const fileName = `intro-letter-view.pdf`;
+                                        const saved = await Filesystem.writeFile({
+                                            path: fileName,
+                                            data: base64,
+                                            directory: Directory.Cache,
+                                            recursive: true
+                                        });
+                                        await Share.share({
+                                            title: 'Introduction Letter',
+                                            url: saved.uri
+                                        });
+                                    } catch (err) {
+                                        console.error('System viewer failed:', err);
+                                        setToast({ message: 'Failed to open system viewer.', type: 'error' });
+                                    }
+                                }} style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>
+                                    Open with System Viewer
+                                </Button>
+                            </div>
+                        )}
+                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem', background: '#f3f4f6' }}>
+                            <iframe src={pdfModal} style={{ width: '100%', height: '100%', border: 'none' }} title="PDF Viewer" />
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Member Details Modal */}
             {selectedMember && (
                 <MemberDetails

@@ -7,7 +7,9 @@ import api from '../../utils/api';
 
 const MembershipPlans = () => {
     const [plans, setPlans] = React.useState([]);
+    const [memberships, setMemberships] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
+    const [activeTab, setActiveTab] = React.useState('plans');
     const [editingPlan, setEditingPlan] = React.useState(null);
 
     const getIcon = (iconName) => {
@@ -19,19 +21,24 @@ const MembershipPlans = () => {
         }
     };
 
-    const fetchPlans = async () => {
+    const fetchData = async () => {
+        setLoading(true);
         try {
-            const response = await api.get('/membership-plans');
-            setPlans(response.data);
+            const [plansRes, membershipsRes] = await Promise.all([
+                api.get('/membership-plans'),
+                api.get('/members/all-memberships')
+            ]);
+            setPlans(plansRes.data);
+            setMemberships(membershipsRes.data);
         } catch (err) {
-            console.error('Error fetching plans:', err);
+            console.error('Error fetching data:', err);
         } finally {
             setLoading(false);
         }
     };
 
     React.useEffect(() => {
-        fetchPlans();
+        fetchData();
     }, []);
 
     const handleEdit = (plan) => {
@@ -65,40 +72,111 @@ const MembershipPlans = () => {
                     <div className="content-container animate-slide-up">
                         <div className="plans-header">
                             <div>
-                                <h1>Membership Plans</h1>
-                                <p>Manage your club's subscription tiers and benefits.</p>
+                                <h1>Membership Management</h1>
+                                <p>Manage your club's subscription tiers and view active memberships.</p>
                             </div>
                         </div>
 
+                        <div className="tabs-container glass" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', padding: '0.5rem' }}>
+                            <button 
+                                className={`tab-btn ${activeTab === 'plans' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('plans')}
+                                style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', border: 'none', background: activeTab === 'plans' ? '#6366f1' : 'transparent', color: activeTab === 'plans' ? 'white' : '#64748b', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                                Membership Plans
+                            </button>
+                            <button 
+                                className={`tab-btn ${activeTab === 'memberships' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('memberships')}
+                                style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', border: 'none', background: activeTab === 'memberships' ? '#6366f1' : 'transparent', color: activeTab === 'memberships' ? 'white' : '#64748b', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                                Active Memberships
+                            </button>
+                        </div>
+
                         {loading ? (
-                            <div className="loading-state">
-                                <div className="spinner"></div>
-                                <p>Loading membership plans...</p>
+                            <div className="loading-state" style={{ textAlign: 'center', padding: '3rem' }}>
+                                <p>Loading data...</p>
                             </div>
-                        ) : plans.length === 0 ? (
-                            <div className="empty-state">
-                                <p>No membership plans found. Please seed the database.</p>
-                            </div>
+                        ) : activeTab === 'plans' ? (
+                            plans.length === 0 ? (
+                                <div className="empty-state">
+                                    <p>No membership plans found. Please seed the database.</p>
+                                </div>
+                            ) : (
+                                <div className="plans-container">
+                                    {plans.map((plan) => (
+                                        <div key={plan._id} className={`plan-card ${plan.isPremium ? 'premium' : ''}`}>
+                                            <div className="plan-icon">
+                                                {getIcon(plan.icon)}
+                                            </div>
+                                            <div className="plan-header">
+                                                <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#6366f1', fontWeight: 'bold', letterSpacing: '1px' }}>
+                                                    {plan.clubId?.name || 'Global Plan'}
+                                                </span>
+                                                <h2>{plan.title}</h2>
+                                                <div className="plan-price">${plan.price} <span>/year</span></div>
+                                                <p className="plan-description">{plan.description}</p>
+                                            </div>
+                                            <ul className="plan-features">
+                                                {plan.features.map((feature, idx) => (
+                                                    <li key={idx}><FaCheck className="check-icon" /> {feature}</li>
+                                                ))}
+                                            </ul>
+                                            <button className="btn-edit-plan" onClick={() => handleEdit(plan)}><FaEdit /> Edit Plan</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
                         ) : (
-                            <div className="plans-container">
-                                {plans.map((plan) => (
-                                    <div key={plan._id} className={`plan-card ${plan.isPremium ? 'premium' : ''}`}>
-                                        <div className="plan-icon">
-                                            {getIcon(plan.icon)}
-                                        </div>
-                                        <div className="plan-header">
-                                            <h2>{plan.title}</h2>
-                                            <div className="plan-price">${plan.price} <span>/year</span></div>
-                                            <p className="plan-description">{plan.description}</p>
-                                        </div>
-                                        <ul className="plan-features">
-                                            {plan.features.map((feature, idx) => (
-                                                <li key={idx}><FaCheck className="check-icon" /> {feature}</li>
-                                            ))}
-                                        </ul>
-                                        <button className="btn-edit-plan" onClick={() => handleEdit(plan)}><FaEdit /> Edit Plan</button>
+                            <div className="memberships-table-container glass">
+                                <table className="management-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f8fafc', textAlign: 'left' }}>
+                                            <th style={{ padding: '1rem' }}>User</th>
+                                            <th style={{ padding: '1rem' }}>Club</th>
+                                            <th style={{ padding: '1rem' }}>Plan</th>
+                                            <th style={{ padding: '1rem' }}>Status</th>
+                                            <th style={{ padding: '1rem' }}>Expires At</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {memberships.map((m) => (
+                                            <tr key={m._id} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                        <div style={{ width: '2rem', height: '2rem', borderRadius: '50%', background: '#6366f1', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                                            {m.userId?.name?.charAt(0) || 'U'}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontWeight: '600' }}>{m.userId?.name || 'Unknown'}</div>
+                                                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.userId?.email}</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '1rem' }}>{m.clubId?.name || 'N/A'}</td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <span style={{ fontWeight: '500', color: '#4f46e5' }}>{m.planId?.title || 'Standard'}</span>
+                                                </td>
+                                                <td style={{ padding: '1rem' }}>
+                                                    <span className={`status-badge ${m.status}`} style={{
+                                                        padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '600',
+                                                        background: m.status === 'active' ? '#dcfce7' : '#fee2e2',
+                                                        color: m.status === 'active' ? '#166534' : '#991b1b'
+                                                    }}>
+                                                        {m.status}
+                                                    </span>
+                                                </td>
+                                                <td style={{ padding: '1rem' }}>{m.expiresAt ? new Date(m.expiresAt).toLocaleDateString() : 'Never'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {memberships.length === 0 && (
+                                    <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                                        No active memberships found.
                                     </div>
-                                ))}
+                                )}
                             </div>
                         )}
                     </div>

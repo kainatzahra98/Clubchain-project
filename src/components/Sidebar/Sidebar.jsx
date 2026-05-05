@@ -11,7 +11,8 @@ import {
     FaHome,
     FaCommentDots,
     FaCrown,
-    FaBuilding
+    FaBuilding,
+    FaCreditCard
 } from 'react-icons/fa';
 import './Sidebar.css';
 
@@ -27,6 +28,7 @@ const Sidebar = ({ theme = 'light' }) => {
         { name: 'Events', path: '/admin/events', icon: <FaCalendarAlt /> },
         { name: 'Membership', path: '/admin/membership-plans', icon: <FaCrown /> },
         { name: 'Intro Letters', path: '/admin/letters', icon: <FaFileAlt /> },
+        { name: 'Payments', path: '/admin/payments', icon: <FaCreditCard /> },
         { name: 'Settings', path: '/admin/settings', icon: <FaCog /> },
         { name: 'Go Home', path: '/', icon: <FaHome /> },
     ];

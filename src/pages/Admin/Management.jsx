@@ -171,11 +171,16 @@ const Management = () => {
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>
-                                                    <span className={`role-badge ${member.role?.toLowerCase()}`}>
-                                                        {getRoleName(member.role)}
-                                                    </span>
-                                                </td>
+                                                 <td>
+                                                     <span className={`role-badge ${member.role?.toLowerCase()}`}>
+                                                         {getRoleName(member.role)}
+                                                     </span>
+                                                     {member.clubId && (
+                                                         <div style={{ fontSize: '0.7rem', color: '#6366f1', marginTop: '4px', fontWeight: 'bold' }}>
+                                                             {member.clubId.name}
+                                                         </div>
+                                                     )}
+                                                 </td>
                                                 <td>
                                                     <div className="status-toggle-cell">
                                                         <span className="status-pill active">Active</span>

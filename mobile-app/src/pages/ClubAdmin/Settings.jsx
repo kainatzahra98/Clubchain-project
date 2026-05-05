@@ -5,8 +5,9 @@ import Button from '../../components/UI/Button';
 import Toast from '../../components/UI/Toast';
 import { FaBuilding, FaUsersCog, FaBell, FaGlobe, FaSignOutAlt, FaHandshake, FaTimes, FaSearch, FaTrash, FaPlus, FaUserFriends, FaCheckCircle, FaClock, FaEye, FaPaperPlane, FaDownload } from 'react-icons/fa';
 import { Browser } from '@capacitor/browser';
-import { Filesystem } from '@capacitor/filesystem';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 import api from '../../utils/api';
 
 const Settings = () => {
@@ -22,6 +23,7 @@ const Settings = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [loading, setLoading] = useState(false);
+    const [pdfModal, setPdfModal] = useState(null);
     const [toast, setToast] = useState(null);
     const [showEditProfileModal, setShowEditProfileModal] = useState(false);
     const [editFormData, setEditFormData] = useState({
@@ -89,102 +91,51 @@ const Settings = () => {
             const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
             const pdfUrl = `${cleanBaseURL}/intro-letters/${id}/download?token=${token}&type=${mode}`;
 
-            console.log('Settings PDF action:', mode, 'URL:', pdfUrl);
-
             if (mode === 'view') {
-                // Try to fetch the PDF first and create a blob URL
-                try {
-                    const response = await fetch(pdfUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
+                const response = await fetch(pdfUrl, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-
-                    // Get the blob and create a data URL
-                    const blob = await response.blob();
-                    const dataUrl = URL.createObjectURL(blob);
-                    
-                    // Open the blob URL in the browser
-                    await Browser.open({ url: dataUrl });
-                    
-                    // Clean up the blob URL after a delay
-                    setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
-                    
-                } catch (fetchError) {
-                    console.error('Fetch failed, trying direct URL:', fetchError);
-                    
-                    // Fallback: try direct URL (might trigger download)
-                    await Browser.open({ url: pdfUrl });
-                }
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = () => setPdfModal(reader.result);
+                reader.readAsDataURL(blob);
             } else {
-                // Download mode - save file to device
-                try {
-                    const response = await fetch(pdfUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
+                const response = await fetch(pdfUrl, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                const blob = await response.blob();
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                    const base64data = reader.result;
+                    try {
+                        const fileName = `intro-letter-${id}.pdf`;
+                        const result = await Filesystem.writeFile({
+                            path: fileName,
+                            data: base64data.split(',')[1],
+                            directory: Directory.Cache,
+                            recursive: true
+                        });
+                        setToast({ message: 'PDF processed successfully!', type: 'success' });
+                        await Share.share({
+                            title: 'Introduction Letter',
+                            url: result.uri
+                        });
+                    } catch (err) {
+                        const dataUrl = URL.createObjectURL(blob);
+                        await Browser.open({ url: dataUrl });
                     }
-
-                    const blob = await response.blob();
-                    const reader = new FileReader();
-                    
-                    reader.onloadend = async () => {
-                        const base64data = reader.result;
-                        
-                        try {
-                            // Save file to device
-                            const fileName = `intro-letter-${id}.pdf`;
-                            const result = await Filesystem.writeFile({
-                                path: fileName,
-                                data: base64data.split(',')[1], // Remove data:application/pdf;base64, prefix
-                                directory: 'Downloads'
-                            });
-                            
-                            console.log('File saved successfully:', result);
-                            setToast({ message: 'PDF saved to your device downloads!', type: 'success' });
-                            
-                            // Try to share the file as well
-                            try {
-                                await Share.share({
-                                    title: 'Introduction Letter',
-                                    text: 'My ClubChain Introduction Letter',
-                                    url: result.uri,
-                                    dialogTitle: 'Share Introduction Letter'
-                                });
-                            } catch (shareError) {
-                                console.log('Share cancelled or not available');
-                            }
-                            
-                        } catch (fileError) {
-                            console.error('File save failed, trying browser download:', fileError);
-                            
-                            // Fallback: try to open in browser for download
-                            const dataUrl = URL.createObjectURL(blob);
-                            await Browser.open({ url: dataUrl });
-                            setTimeout(() => URL.revokeObjectURL(dataUrl), 5000);
-                        }
-                    };
-                    
-                    reader.readAsDataURL(blob);
-                    
-                } catch (fetchError) {
-                    console.error('Download failed, trying direct URL:', fetchError);
-                    await Browser.open({ url: pdfUrl });
-                }
+                };
+                reader.readAsDataURL(blob);
             }
         } catch (err) {
             console.error('PDF action failed:', err);
-            setToast({ message: 'Failed to process document. Please check your internet connection and try again.', type: 'error' });
+            setToast({ message: 'Failed to process document.', type: 'error' });
         }
     };
 
@@ -590,8 +541,46 @@ const Settings = () => {
                         )}
                     </div>
                 </div>
-            )
-            }
+            )}
+
+            {pdfModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(5px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001
+                }} onClick={() => setPdfModal(null)}>
+                    <div style={{
+                        background: 'white', borderRadius: '16px', width: '95%', maxWidth: '800px', height: '90vh',
+                        display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '1rem', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>Introduction Letter</h3>
+                            <button onClick={() => setPdfModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.2rem' }}>✖</button>
+                        </div>
+                        {Capacitor.isNativePlatform() && (
+                            <div style={{ padding: '0.5rem 1rem', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>
+                                <Button size="small" variant="outline" onClick={async () => {
+                                    if (!pdfModal) return;
+                                    try {
+                                        const base64 = pdfModal.split(',')[1];
+                                        const saved = await Filesystem.writeFile({
+                                            path: 'view-letter.pdf',
+                                            data: base64,
+                                            directory: Directory.Cache
+                                        });
+                                        await Share.share({ title: 'Letter', url: saved.uri });
+                                    } catch (err) {
+                                        console.error(err);
+                                    }
+                                }}>Open with System Viewer</Button>
+                            </div>
+                        )}
+                        <div style={{ flex: 1, background: '#f3f4f6' }}>
+                            <iframe src={pdfModal} style={{ width: '100%', height: '100%', border: 'none' }} title="PDF" />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

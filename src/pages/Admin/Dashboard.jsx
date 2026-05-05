@@ -27,7 +27,7 @@ const Dashboard = () => {
     const stats = [
         { title: "Total Members", value: statsData?.totalUsers || statsData?.totalMembers || "0", icon: <FaUserPlus />, trend: "+12%", color: "blue" },
         { title: "Active Clubs", value: statsData?.totalClubs || statsData?.availableClubs || "0", icon: <FaCalendarCheck />, trend: "+2", color: "indigo" },
-        { title: "Monthly Revenue", value: "$42,500", icon: <FaCreditCard />, trend: "+8.4%", color: "teal" },
+        { title: "Total Revenue", value: `$${statsData?.totalRevenue?.toLocaleString() || "0"}`, icon: <FaCreditCard />, trend: "+8.4%", color: "teal" },
     ];
 
     const formatTime = (dateString) => {

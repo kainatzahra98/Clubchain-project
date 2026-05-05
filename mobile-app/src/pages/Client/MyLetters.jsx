@@ -30,8 +30,10 @@ const MyLetters = () => {
         try {
             const res = await api.get('/intro-letters/my');
             const data = res.data || [];
-            // Strictly sort by newest date first
+            // Priority: PENDING at the top, then strictly sort by newest date
             const sortedLetters = [...data].sort((a, b) => {
+                if (a.status === 'PENDING' && b.status !== 'PENDING') return -1;
+                if (a.status !== 'PENDING' && b.status === 'PENDING') return 1;
                 return new Date(b.createdAt) - new Date(a.createdAt);
             });
             setLetters(sortedLetters);
@@ -83,35 +85,14 @@ const MyLetters = () => {
         });
     };
 
-    // VIEW LETTER — On native, save and share; on web, use modal
+    // VIEW LETTER — Fetch once, show in-app modal; fallback button opens system viewer
     const handleViewLetter = async (letter, e) => {
         if (e) { e.stopPropagation(); e.preventDefault(); }
         if (viewLoadingId || saveLoadingId) return;
         setViewLoadingId(letter._id);
         try {
-            console.log('Fetching PDF for letter:', letter._id);
-            
-            if (Capacitor.isNativePlatform()) {
-                // For native, we save to cache and use Share which allows viewing/opening
-                const { dataUrl } = await fetchPdfBase64(letter._id);
-                const fileName = `view-letter-${letter._id}.pdf`;
-                const base64Only = dataUrl.split(',')[1];
-
-                const saved = await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Only,
-                    directory: Directory.Cache,
-                    recursive: true,
-                });
-                
-            }
-            
-            // In-app view for both Web and Mobile
-            const response = await api.get(`/intro-letters/${letter._id}/download`, {
-                responseType: 'blob'
-            });
-            const blobUrl = URL.createObjectURL(response.data);
-            setPdfModal(blobUrl);
+            const { dataUrl } = await fetchPdfBase64(letter._id);
+            setPdfModal(dataUrl); // opens in-app modal for both web and mobile
         } catch (err) {
             console.error('View letter failed:', err);
             alert('Could not open the letter: ' + err.message);
@@ -414,10 +395,7 @@ const MyLetters = () => {
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 'bold', margin: 0 }}>Introduction Letter</h3>
                             <Button 
                                 variant="outline" 
-                                onClick={() => {
-                                    if (pdfModal.startsWith('blob:')) URL.revokeObjectURL(pdfModal);
-                                    setPdfModal(null);
-                                }}
+                                onClick={() => setPdfModal(null)}
                                 style={{ padding: '0.5rem 1rem' }}
                             >
                                 <FaTimes /> Close
@@ -431,22 +409,17 @@ const MyLetters = () => {
                                 </Button>
                             </div>
                         )}
-                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem', background: '#f3f4f6', display: 'flex', justifyContent: 'center' }}>
-                            <object 
-                                data={pdfModal} 
-                                type="application/pdf"
+                        <div style={{ flex: 1, overflow: 'auto', padding: '1rem', background: '#f3f4f6' }}>
+                            <iframe 
+                                src={pdfModal} 
                                 style={{ 
                                     width: '100%', 
                                     height: '100%', 
                                     border: 'none',
                                     minHeight: '500px'
                                 }}
-                            >
-                                <div style={{ textAlign: 'center', padding: '2rem' }}>
-                                    <p>Your device cannot display this PDF directly.</p>
-                                    <Button onClick={handleExternalView}>Open in System Viewer</Button>
-                                </div>
-                            </object>
+                                title="PDF Viewer"
+                            />
                         </div>
                     </div>
                 </div>

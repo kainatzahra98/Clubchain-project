@@ -7,11 +7,12 @@ import Dashboard from './pages/Admin/Dashboard';
 import MemberProfile from './pages/Admin/MemberProfile';
 import Management from './pages/Admin/Management';
 import FeedbackDashboard from './pages/Admin/FeedbackDashboard';
-import IntroLetters from './pages/Admin/IntroLetters';
 import Events from './pages/Admin/Events';
 import MembershipPlans from './pages/Admin/MembershipPlans';
 import ClubsManagement from './pages/Admin/ClubsManagement';
 import Settings from './pages/Admin/Settings';
+import IntroLetters from './pages/Admin/IntroLetters';
+import Payments from './pages/Admin/Payments';
 import LoadingOverlay from './components/UI/LoadingOverlay';
 import './styles/global.css';
 
@@ -45,9 +46,10 @@ function App() {
         <Route path="/admin/clubs" element={<ClubsManagement />} />
         <Route path="/admin/profile" element={<MemberProfile />} />
         <Route path="/admin/feedback" element={<FeedbackDashboard />} />
-        <Route path="/admin/letters" element={<IntroLetters />} />
         <Route path="/admin/events" element={<Events />} />
         <Route path="/admin/membership-plans" element={<MembershipPlans />} />
+        <Route path="/admin/letters" element={<IntroLetters />} />
+        <Route path="/admin/payments" element={<Payments />} />
         <Route path="/admin/settings" element={<Settings />} />
 
         {/* Default logic */}
