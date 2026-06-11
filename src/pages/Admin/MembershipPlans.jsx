@@ -13,7 +13,7 @@ const MembershipPlans = () => {
     const [activeTab, setActiveTab] = React.useState('plans');
     const [editingPlan, setEditingPlan] = React.useState(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false);
-    const [membershipFilter, setMembershipFilter] = React.useState('all');
+    const [membershipFilter, setMembershipFilter] = React.useState('active');
     const [actionLoading, setActionLoading] = React.useState(null);
     const [toast, setToast] = React.useState(null);
 
