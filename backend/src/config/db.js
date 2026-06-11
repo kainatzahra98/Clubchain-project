@@ -13,7 +13,6 @@ const connectDB = async () => {
 
     if (!cachedDb.promise) {
         const opts = {
-            bufferCommands: false,
             family: 4 // Force IPv4
         };
 
