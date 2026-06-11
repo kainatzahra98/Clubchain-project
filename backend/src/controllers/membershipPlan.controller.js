@@ -105,9 +105,67 @@ const updatePlan = async (req, res) => {
         plan = await MembershipPlan.findByIdAndUpdate(req.params.id, req.body, {
             new: true,
             runValidators: true
-        });
+        }).populate('clubId', 'name');
 
         res.status(200).json(plan);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Extend (clone) a plan to additional clubs
+// @route   POST /api/membership-plans/:id/extend
+// @access  Private/SYSTEM_ADMIN
+const extendPlanToClubs = async (req, res) => {
+    try {
+        const Club = require('../models/Club.model');
+        const sourcePlan = await MembershipPlan.findById(req.params.id);
+
+        if (!sourcePlan) {
+            return res.status(404).json({ message: 'Source plan not found' });
+        }
+
+        const { clubIds, allClubs } = req.body;
+        let targetClubIds = clubIds || [];
+
+        if (allClubs) {
+            const activeClubs = await Club.find({ status: 'active' }).select('_id');
+            targetClubIds = activeClubs.map(c => c._id.toString());
+        }
+
+        // Exclude clubs that already have this exact plan (same title + clubId)
+        const existingPlans = await MembershipPlan.find({
+            title: sourcePlan.title,
+            clubId: { $in: targetClubIds }
+        }).select('clubId');
+        const existingClubSet = new Set(existingPlans.map(p => p.clubId.toString()));
+        const newClubIds = targetClubIds.filter(id => !existingClubSet.has(id.toString()));
+
+        if (newClubIds.length === 0) {
+            return res.status(400).json({ message: 'This plan already exists in all selected clubs' });
+        }
+
+        // Clone the plan to each new club
+        const planData = {
+            title: sourcePlan.title,
+            price: sourcePlan.price,
+            description: sourcePlan.description,
+            features: sourcePlan.features,
+            durationMonths: sourcePlan.durationMonths,
+            icon: sourcePlan.icon,
+            isPremium: sourcePlan.isPremium,
+            isActive: sourcePlan.isActive
+        };
+
+        const created = await Promise.all(
+            newClubIds.map(clubId => MembershipPlan.create({ ...planData, clubId }))
+        );
+
+        const populated = await MembershipPlan.find({
+            _id: { $in: created.map(p => p._id) }
+        }).populate('clubId', 'name');
+
+        res.status(201).json({ created: populated, skipped: existingClubSet.size });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -147,5 +205,6 @@ module.exports = {
     createPlan,
     createBulkPlans,
     updatePlan,
+    extendPlanToClubs,
     deletePlan
 };

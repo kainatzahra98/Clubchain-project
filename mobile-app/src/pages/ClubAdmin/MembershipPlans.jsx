@@ -40,7 +40,8 @@ const MembershipPlans = () => {
     const fetchPlans = async () => {
         setPlansLoading(true);
         try {
-            const clubId = user?.clubId;
+            const rawClubId = user?.clubId;
+            const clubId = typeof rawClubId === 'object' ? rawClubId?._id : rawClubId;
             const isClubAdmin = user?.role === 'CLUB_ADMIN';
             const url = clubId
                 ? `/membership-plans?clubId=${clubId}${isClubAdmin ? '&strict=true' : ''}`
@@ -49,7 +50,7 @@ const MembershipPlans = () => {
             setPlans(response.data);
         } catch (err) {
             console.error('Error fetching plans:', err);
-            showToast('Failed to load plans', 'error');
+            showToast('Failed to load plans: ' + (err.response?.data?.message || err.message), 'error');
         } finally {
             setPlansLoading(false);
         }
@@ -63,7 +64,7 @@ const MembershipPlans = () => {
             setMemberships(response.data);
         } catch (err) {
             console.error('Error fetching memberships:', err);
-            showToast('Failed to load members', 'error');
+            showToast('Failed to load members: ' + (err.response?.data?.message || err.message), 'error');
         } finally {
             setMembersLoading(false);
         }

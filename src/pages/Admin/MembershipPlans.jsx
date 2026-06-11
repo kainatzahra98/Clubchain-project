@@ -2,7 +2,7 @@ import React from 'react';
 import Sidebar from '../../components/Sidebar/Sidebar';
 import Header from '../../components/Header/Header';
 import './MembershipPlans.css';
-import { FaCrown, FaCheck, FaGem, FaStar, FaEdit, FaPlus, FaTrash, FaPlay, FaPause } from 'react-icons/fa';
+import { FaCrown, FaCheck, FaGem, FaStar, FaEdit, FaPlus, FaTrash, FaPlay, FaPause, FaGlobe, FaBuilding } from 'react-icons/fa';
 import api from '../../utils/api';
 
 const MembershipPlans = () => {
@@ -16,6 +16,12 @@ const MembershipPlans = () => {
     const [membershipFilter, setMembershipFilter] = React.useState('active');
     const [actionLoading, setActionLoading] = React.useState(null);
     const [toast, setToast] = React.useState(null);
+
+    // Extend-to-clubs modal state
+    const [extendingPlan, setExtendingPlan] = React.useState(null);
+    const [extendScope, setExtendScope] = React.useState('specific');
+    const [extendClubIds, setExtendClubIds] = React.useState([]);
+    const [extendLoading, setExtendLoading] = React.useState(false);
 
     // New plan state — supports multi-club selection
     const [newPlan, setNewPlan] = React.useState({
@@ -125,6 +131,58 @@ const MembershipPlans = () => {
         clubScope: 'specific', selectedClubIds: []
     });
 
+    // ─── Extend Plan to Clubs ──────────────────────────────────────────────────
+    const openExtendModal = (plan) => {
+        setExtendingPlan(plan);
+        setExtendScope('specific');
+        // Pre-check clubs that already have this plan
+        const existingClubIds = plans
+            .filter(p => p.title === plan.title)
+            .map(p => (typeof p.clubId === 'object' ? p.clubId._id : p.clubId))
+            .filter(Boolean);
+        // Don't pre-select the existing ones — we'll grey them out instead
+        setExtendClubIds([]);
+    };
+
+    const getExistingClubIdsForPlan = (plan) => {
+        if (!plan) return new Set();
+        return new Set(
+            plans
+                .filter(p => p.title === plan.title)
+                .map(p => (typeof p.clubId === 'object' ? p.clubId?._id : p.clubId))
+                .filter(Boolean)
+        );
+    };
+
+    const toggleExtendClub = (clubId) => {
+        setExtendClubIds(prev =>
+            prev.includes(clubId)
+                ? prev.filter(id => id !== clubId)
+                : [...prev, clubId]
+        );
+    };
+
+    const handleExtend = async () => {
+        if (!extendingPlan) return;
+        setExtendLoading(true);
+        try {
+            const body = extendScope === 'all'
+                ? { allClubs: true }
+                : { clubIds: extendClubIds };
+            const res = await api.post(`/membership-plans/${extendingPlan._id}/extend`, body);
+            setPlans(prev => [...res.data.created, ...prev]);
+            const msg = res.data.skipped
+                ? `Added to ${res.data.created.length} clubs (${res.data.skipped} already had it)`
+                : `Added to ${res.data.created.length} clubs`;
+            showToast(msg);
+            setExtendingPlan(null);
+        } catch (err) {
+            showToast(err.response?.data?.message || 'Failed to extend plan', 'error');
+        } finally {
+            setExtendLoading(false);
+        }
+    };
+
     // ─── Membership Actions ────────────────────────────────────────────────────
     const filteredMemberships = React.useMemo(() => {
         if (membershipFilter === 'all') return memberships;
@@ -176,6 +234,25 @@ const MembershipPlans = () => {
         return { bg: '#e0e7ff', color: '#3730a3' };
     };
 
+    // ─── Computed: active plans across all clubs ──────────────────────────────
+    const activePlansAcrossClubs = React.useMemo(() => {
+        return plans.filter(p => p.isActive !== false);
+    }, [plans]);
+
+    // Group active plans by title for the "All Plans" tab
+    const groupedPlans = React.useMemo(() => {
+        const map = {};
+        activePlansAcrossClubs.forEach(plan => {
+            const key = plan.title;
+            if (!map[key]) {
+                map[key] = { ...plan, clubs: [] };
+            }
+            const clubName = typeof plan.clubId === 'object' ? plan.clubId?.name : 'Unknown';
+            map[key].clubs.push({ clubId: typeof plan.clubId === 'object' ? plan.clubId?._id : plan.clubId, clubName, planId: plan._id });
+        });
+        return Object.values(map);
+    }, [activePlansAcrossClubs]);
+
     return (
         <div className="admin-dashboard-layout">
             <Sidebar theme="light" />
@@ -216,19 +293,24 @@ const MembershipPlans = () => {
                         </div>
 
                         {/* Tabs */}
-                        <div className="tabs-container glass" style={{ marginBottom: '2rem', display: 'flex', gap: '1rem', padding: '0.5rem' }}>
-                            {['plans', 'memberships'].map(tab => (
+                        <div className="tabs-container glass" style={{ marginBottom: '2rem', display: 'flex', gap: '0.5rem', padding: '0.5rem', flexWrap: 'wrap' }}>
+                            {[
+                                { key: 'plans', label: 'Membership Plans' },
+                                { key: 'allPlans', label: 'All Active Plans' },
+                                { key: 'memberships', label: 'Active Memberships' }
+                            ].map(tab => (
                                 <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key)}
                                     style={{
                                         padding: '0.75rem 1.5rem', borderRadius: '12px', border: 'none',
-                                        background: activeTab === tab ? '#6366f1' : 'transparent',
-                                        color: activeTab === tab ? 'white' : '#64748b',
-                                        fontWeight: 'bold', cursor: 'pointer', textTransform: 'capitalize'
+                                        background: activeTab === tab.key ? '#6366f1' : 'transparent',
+                                        color: activeTab === tab.key ? 'white' : '#64748b',
+                                        fontWeight: 'bold', cursor: 'pointer'
                                     }}
                                 >
-                                    {tab === 'plans' ? 'Membership Plans' : 'Active Memberships'}
+                                    {tab.label}
+                                    {tab.key === 'allPlans' && <span style={{ marginLeft: '0.5rem', background: activeTab === tab.key ? 'rgba(255,255,255,0.25)' : '#e0e7ff', color: activeTab === tab.key ? 'white' : '#4f46e5', padding: '0.15rem 0.5rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: '700' }}>{activePlansAcrossClubs.length}</span>}
                                 </button>
                             ))}
                         </div>
@@ -273,6 +355,13 @@ const MembershipPlans = () => {
                                                     <FaEdit /> Edit
                                                 </button>
                                                 <button
+                                                    onClick={() => openExtendModal(plan)}
+                                                    title="Add to more clubs"
+                                                    style={{ padding: '0.6rem 0.8rem', borderRadius: '10px', border: 'none', background: '#e0e7ff', color: '#4f46e5', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: '600', fontSize: '0.85rem' }}
+                                                >
+                                                    <FaGlobe />
+                                                </button>
+                                                <button
                                                     onClick={() => handleDeletePlan(plan._id)}
                                                     style={{ padding: '0.6rem 0.8rem', borderRadius: '10px', border: 'none', background: '#fee2e2', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: '600', fontSize: '0.85rem' }}
                                                 >
@@ -283,6 +372,102 @@ const MembershipPlans = () => {
                                     ))}
                                 </div>
                             )
+                        ) : activeTab === 'allPlans' ? (
+                            /* ── All Active Plans Table ── */
+                            <div className="memberships-table-container glass">
+                                <div style={{ padding: '1rem 1.5rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>
+                                        Showing <strong>{activePlansAcrossClubs.length}</strong> active plan(s) across all clubs — grouped by {groupedPlans.length} unique plan(s).
+                                    </p>
+                                    <button
+                                        onClick={fetchData}
+                                        style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600' }}
+                                    >
+                                        ↻ Refresh
+                                    </button>
+                                </div>
+
+                                {groupedPlans.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                                        No active plans found.
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '0.5rem 1rem 1.5rem' }}>
+                                        {groupedPlans.map((group, gi) => (
+                                            <div key={gi} style={{
+                                                background: 'white', borderRadius: '14px', border: '1px solid #e2e8f0',
+                                                marginBottom: '1rem', overflow: 'hidden',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                                            }}>
+                                                {/* Plan header row */}
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: '1rem',
+                                                    padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9',
+                                                    background: group.isPremium ? 'linear-gradient(135deg, #fef3c7 0%, #fff7ed 100%)' : '#f8fafc'
+                                                }}>
+                                                    <div style={{ fontSize: '1.5rem', color: group.isPremium ? '#d97706' : '#6366f1' }}>
+                                                        {getIcon(group.icon)}
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#1e293b' }}>{group.title}</h3>
+                                                            {group.isPremium && (
+                                                                <span style={{ background: '#fef3c7', color: '#92400e', padding: '0.15rem 0.6rem', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: '700' }}>PREMIUM</span>
+                                                            )}
+                                                        </div>
+                                                        <p style={{ margin: '0.25rem 0 0', color: '#64748b', fontSize: '0.85rem' }}>{group.description}</p>
+                                                    </div>
+                                                    <div style={{ textAlign: 'right' }}>
+                                                        <div style={{ fontWeight: '700', fontSize: '1.25rem', color: '#1e293b' }}>${group.price}</div>
+                                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{group.durationMonths} month{group.durationMonths > 1 ? 's' : ''}</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => openExtendModal(group)}
+                                                        style={{
+                                                            padding: '0.6rem 1rem', borderRadius: '10px', border: 'none',
+                                                            background: '#4f46e5', color: 'white', cursor: 'pointer',
+                                                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                                            fontWeight: '600', fontSize: '0.85rem', whiteSpace: 'nowrap'
+                                                        }}
+                                                    >
+                                                        <FaGlobe size={12} /> Edit Clubs
+                                                    </button>
+                                                </div>
+                                                {/* Clubs list */}
+                                                <div style={{ padding: '0.75rem 1.5rem' }}>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                        {group.clubs.map((c, ci) => (
+                                                            <span key={ci} style={{
+                                                                display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                                                                padding: '0.35rem 0.85rem', borderRadius: '8px',
+                                                                background: '#eef2ff', color: '#4338ca',
+                                                                fontSize: '0.8rem', fontWeight: '600'
+                                                            }}>
+                                                                <FaBuilding size={10} /> {c.clubName}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    {/* Features */}
+                                                    {group.features && group.features.length > 0 && (
+                                                        <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                                            {group.features.map((f, fi) => (
+                                                                <span key={fi} style={{
+                                                                    display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                                                    padding: '0.25rem 0.65rem', borderRadius: '6px',
+                                                                    background: '#f0fdf4', color: '#166534',
+                                                                    fontSize: '0.75rem', fontWeight: '500'
+                                                                }}>
+                                                                    <FaCheck size={8} /> {f}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         ) : (
                             /* ── Memberships Table ── */
                             <div className="memberships-table-container glass">
@@ -398,6 +583,13 @@ const MembershipPlans = () => {
                     <div className="modal-content" style={{ background: 'white', padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
                         <h2 style={{ marginBottom: '1.5rem', fontSize: '1.5rem', color: '#1a1a2e' }}>Edit Plan</h2>
                         <form onSubmit={handleSave}>
+                            {/* Show current club */}
+                            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#eef2ff', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <FaBuilding size={14} style={{ color: '#4f46e5' }} />
+                                <span style={{ fontSize: '0.85rem', color: '#4338ca', fontWeight: '600' }}>
+                                    Club: {editingPlan.clubId?.name || 'Unknown'}
+                                </span>
+                            </div>
                             {[
                                 { label: 'Icon', type: 'select', field: 'icon', options: [['FaStar', 'Star (Silver)'], ['FaCrown', 'Crown (Gold)'], ['FaGem', 'Gem (Platinum)']] },
                             ].map(({ label, type, field, options }) => (
@@ -439,6 +631,16 @@ const MembershipPlans = () => {
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600', color: '#64748b', cursor: 'pointer' }}>
                                     <input type="checkbox" checked={editingPlan.isActive !== false} onChange={e => setEditingPlan({ ...editingPlan, isActive: e.target.checked })} /> Active
                                 </label>
+                            </div>
+                            {/* Extend to more clubs — quick link */}
+                            <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#faf5ff', borderRadius: '10px', border: '1px dashed #c4b5fd' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setEditingPlan(null); openExtendModal(editingPlan); }}
+                                    style={{ background: 'none', border: 'none', color: '#7c3aed', fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                >
+                                    <FaGlobe size={14} /> Add this plan to more clubs →
+                                </button>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                                 <button type="button" onClick={() => setEditingPlan(null)} style={cancelBtn}>Cancel</button>
@@ -554,6 +756,107 @@ const MembershipPlans = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Extend Plan to Clubs Modal ── */}
+            {extendingPlan && (
+                <div className="modal-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div className="modal-content" style={{ background: 'white', padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
+                        <h2 style={{ marginBottom: '0.5rem', fontSize: '1.3rem', color: '#1a1a2e' }}>
+                            <FaGlobe style={{ marginRight: '0.5rem', color: '#6366f1' }} />
+                            Edit Clubs for "{extendingPlan.title}"
+                        </h2>
+                        <p style={{ color: '#64748b', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                            Add this plan to more clubs. Clubs that already have this plan are greyed out.
+                        </p>
+
+                        {/* Currently assigned clubs */}
+                        {(() => {
+                            const existing = getExistingClubIdsForPlan(extendingPlan);
+                            const assignedClubs = clubs.filter(c => existing.has(c._id));
+                            return assignedClubs.length > 0 && (
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <label style={{ ...labelStyle, marginBottom: '0.5rem' }}>Currently Assigned ({assignedClubs.length})</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                        {assignedClubs.map(c => (
+                                            <span key={c._id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.7rem', borderRadius: '8px', background: '#dcfce7', color: '#166534', fontSize: '0.8rem', fontWeight: '600' }}>
+                                                <FaCheck size={10} /> {c.name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Scope toggle */}
+                        <div style={{ marginBottom: '1rem' }}>
+                            <label style={labelStyle}>Add To</label>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                {[['all', '🌐 All Active Clubs'], ['specific', '🏛️ Specific Club(s)']].map(([val, lbl]) => (
+                                    <button
+                                        key={val}
+                                        type="button"
+                                        onClick={() => { setExtendScope(val); setExtendClubIds([]); }}
+                                        style={{
+                                            flex: 1, padding: '0.7rem', borderRadius: '10px', border: '2px solid',
+                                            borderColor: extendScope === val ? '#6366f1' : '#e2e8f0',
+                                            background: extendScope === val ? '#eef2ff' : 'white',
+                                            color: extendScope === val ? '#4f46e5' : '#64748b',
+                                            fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem'
+                                        }}
+                                    >
+                                        {lbl}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Club picker when specific */}
+                        {extendScope === 'specific' && (
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={labelStyle}>Select New Club(s)</label>
+                                <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', maxHeight: '200px', overflowY: 'auto', padding: '0.5rem' }}>
+                                    {clubs.map(club => {
+                                        const alreadyHas = getExistingClubIdsForPlan(extendingPlan).has(club._id);
+                                        return (
+                                            <label key={club._id} style={{
+                                                display: 'flex', alignItems: 'center', gap: '0.6rem',
+                                                padding: '0.5rem', cursor: alreadyHas ? 'not-allowed' : 'pointer',
+                                                borderRadius: '6px', opacity: alreadyHas ? 0.5 : 1
+                                            }}>
+                                                <input
+                                                    type="checkbox"
+                                                    disabled={alreadyHas}
+                                                    checked={alreadyHas || extendClubIds.includes(club._id)}
+                                                    onChange={() => !alreadyHas && toggleExtendClub(club._id)}
+                                                />
+                                                <span style={{ fontSize: '0.9rem', color: '#334155' }}>{club.name}</span>
+                                                {alreadyHas && <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: '#166534', fontWeight: '600' }}>Already added</span>}
+                                                {!alreadyHas && <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: club.status === 'active' ? '#166534' : '#94a3b8' }}>{club.status}</span>}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                            <button type="button" onClick={() => setExtendingPlan(null)} style={cancelBtn}>Cancel</button>
+                            <button
+                                onClick={handleExtend}
+                                disabled={extendLoading || (extendScope === 'specific' && extendClubIds.length === 0)}
+                                style={{
+                                    ...submitBtn,
+                                    opacity: (extendLoading || (extendScope === 'specific' && extendClubIds.length === 0)) ? 0.5 : 1,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                                }}
+                            >
+                                <FaGlobe size={14} />
+                                {extendLoading ? 'Adding...' : extendScope === 'all' ? 'Add to All Clubs' : `Add to ${extendClubIds.length} Club${extendClubIds.length !== 1 ? 's' : ''}`}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
