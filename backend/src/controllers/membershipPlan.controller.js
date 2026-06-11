@@ -48,6 +48,44 @@ const createPlan = async (req, res) => {
     }
 };
 
+// @desc    Create membership plans for multiple clubs (or all active clubs)
+// @route   POST /api/membership-plans/bulk
+// @access  Private/SYSTEM_ADMIN
+const createBulkPlans = async (req, res) => {
+    try {
+        const Club = require('../models/Club.model');
+        const { clubIds, allClubs, ...planData } = req.body;
+
+        let targetClubIds = clubIds || [];
+
+        // If allClubs flag is set, fetch all active club IDs
+        if (allClubs) {
+            const activeClubs = await Club.find({ status: 'active' }).select('_id');
+            targetClubIds = activeClubs.map(c => c._id);
+        }
+
+        if (!targetClubIds || targetClubIds.length === 0) {
+            return res.status(400).json({ message: 'No clubs selected for plan creation' });
+        }
+
+        // Create one plan per club
+        const createdPlans = await Promise.all(
+            targetClubIds.map(clubId =>
+                MembershipPlan.create({ ...planData, clubId })
+            )
+        );
+
+        // Populate clubId name for response
+        const populated = await MembershipPlan.find({
+            _id: { $in: createdPlans.map(p => p._id) }
+        }).populate('clubId', 'name');
+
+        res.status(201).json(populated);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 // @desc    Update a membership plan
 // @route   PUT /api/membership-plans/:id
 // @access  Private/SYSTEM_ADMIN
@@ -102,6 +140,7 @@ const deletePlan = async (req, res) => {
 module.exports = {
     getPlans,
     createPlan,
+    createBulkPlans,
     updatePlan,
     deletePlan
 };

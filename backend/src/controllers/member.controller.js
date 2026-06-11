@@ -606,6 +606,11 @@ const getAllMemberships = async (req, res) => {
             query = { clubId: req.user.clubId };
         }
 
+        // Optional status filter
+        if (req.query.status && req.query.status !== 'all') {
+            query.status = req.query.status;
+        }
+
         const memberships = await Membership.find(query)
             .populate('userId', 'name email image')
             .populate('clubId', 'name')
@@ -613,6 +618,86 @@ const getAllMemberships = async (req, res) => {
             .sort({ joinedAt: -1 });
 
         res.status(200).json(memberships);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Activate a membership (Club Admin)
+// @route   PUT /api/members/:membershipId/activate
+// @access  Private/CLUB_ADMIN or SYSTEM_ADMIN
+const activateMembership = async (req, res) => {
+    try {
+        const membership = await Membership.findById(req.params.membershipId)
+            .populate('planId', 'durationMonths');
+
+        if (!membership) {
+            return res.status(404).json({ message: 'Membership not found' });
+        }
+
+        // Club Admin can only activate memberships in their club
+        if (req.user.role === 'CLUB_ADMIN' && membership.clubId.toString() !== req.user.clubId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to activate this membership' });
+        }
+
+        membership.status = 'active';
+
+        // Set expiry if plan has duration and no expiry set
+        if (!membership.expiresAt && membership.planId?.durationMonths) {
+            const date = new Date();
+            date.setMonth(date.getMonth() + membership.planId.durationMonths);
+            membership.expiresAt = date;
+        }
+
+        await membership.save();
+
+        // Update user status
+        await User.findByIdAndUpdate(membership.userId, { status: 'ACTIVE' });
+
+        // Notify user
+        await Notification.create({
+            userId: membership.userId,
+            type: 'alert',
+            title: 'Membership Activated',
+            message: 'Your membership has been activated by the club admin!',
+            relatedId: membership.clubId
+        });
+
+        res.status(200).json({ message: 'Membership activated successfully', membership });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// @desc    Deactivate a membership by admin
+// @route   PUT /api/members/:membershipId/deactivate-by-admin
+// @access  Private/CLUB_ADMIN or SYSTEM_ADMIN
+const deactivateMembershipByAdmin = async (req, res) => {
+    try {
+        const membership = await Membership.findById(req.params.membershipId);
+
+        if (!membership) {
+            return res.status(404).json({ message: 'Membership not found' });
+        }
+
+        // Club Admin can only deactivate memberships in their club
+        if (req.user.role === 'CLUB_ADMIN' && membership.clubId.toString() !== req.user.clubId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to deactivate this membership' });
+        }
+
+        membership.status = 'inactive';
+        await membership.save();
+
+        // Notify user
+        await Notification.create({
+            userId: membership.userId,
+            type: 'alert',
+            title: 'Membership Deactivated',
+            message: 'Your membership has been deactivated by the club admin.',
+            relatedId: membership.clubId
+        });
+
+        res.status(200).json({ message: 'Membership deactivated successfully', membership });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -630,5 +715,7 @@ module.exports = {
     updateMemberNotes,
     getMemberDetails,
     deleteTask,
-    getAllMemberships
+    getAllMemberships,
+    activateMembership,
+    deactivateMembershipByAdmin
 };
