@@ -118,7 +118,7 @@ const updatePlan = async (req, res) => {
 // @access  Private/SYSTEM_ADMIN
 const deletePlan = async (req, res) => {
     try {
-        let plan = await MembershipPlan.findById(req.params.id);
+        const plan = await MembershipPlan.findById(req.params.id);
 
         if (!plan) {
             return res.status(404).json({ message: 'Plan not found' });
@@ -129,9 +129,14 @@ const deletePlan = async (req, res) => {
             return res.status(403).json({ message: 'Not authorized to delete this plan' });
         }
 
-        plan = await MembershipPlan.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true });
+        // Remove the plan reference from any existing memberships (keep the membership record, just unlink the plan)
+        const Membership = require('../models/Membership.model');
+        await Membership.updateMany({ planId: plan._id }, { $unset: { planId: 1 } });
 
-        res.status(200).json({ message: 'Plan deleted' });
+        // Hard delete the plan from the database
+        await MembershipPlan.findByIdAndDelete(req.params.id);
+
+        res.status(200).json({ message: 'Plan deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
